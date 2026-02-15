@@ -71,7 +71,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
     const result = fuzzysort
       .go(needle, options, {
         keys: ["title", "category"],
-        scoreFn: (r) => r[0].score * 2 + r[1].score
+        scoreFn: (r) => (r[0]?.score ?? 0) * 2 + (r[1]?.score ?? 0)
       })
       .map((x) => x.obj)
 

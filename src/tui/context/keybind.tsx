@@ -111,6 +111,7 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
       const config = store.config.leader
       if (!config) return null
       const str = Array.isArray(config) ? config[0] : config
+      if (!str) return null
       return parseKeybind(str)
     })
 
@@ -166,7 +167,8 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         const config = store.config[key]
         if (!config) return ""
         const first = Array.isArray(config) ? config[0] : config
-        return first.replace("<leader>", store.config.leader as string)
+        if (!first) return ""
+        return first.replace("<leader>", store.config.leader as string ?? "")
       },
       setConfig(config: KeybindConfig) {
         setStore("config", { ...DEFAULT_KEYBINDS, ...config })

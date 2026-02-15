@@ -289,7 +289,7 @@ export class Storage {
     }
     const column = columnMap[field] ?? field
     const stmt = this.db.prepare(`UPDATE sessions SET ${column} = ? WHERE id = ?`)
-    stmt.run(value, id)
+    stmt.run(value as string | number | null, id)
   }
 
   // Status updates

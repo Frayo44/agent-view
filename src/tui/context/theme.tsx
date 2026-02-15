@@ -171,8 +171,8 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
     const [selected, setSelected] = createSignal("opencode")
 
     const theme = createMemo<Theme>(() => {
-      const themeDef = themes[selected()] ?? themes.opencode
-      return themeDef[mode()]
+      const themeDef = themes[selected()] ?? themes.opencode!
+      return themeDef![mode()]
     })
 
     return {
