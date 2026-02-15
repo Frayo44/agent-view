@@ -1,6 +1,6 @@
 /**
  * SQLite storage for session/group persistence
- * Based on agent-deck's statedb pattern
+ * Based on agent-view's statedb pattern
  * Uses Bun's built-in SQLite
  */
 

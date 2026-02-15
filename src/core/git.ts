@@ -1,6 +1,6 @@
 /**
  * Git utilities for worktree management
- * Based on agent-deck's internal/git package
+ * Based on agent-view's internal/git package
  */
 
 import { exec } from "child_process"
@@ -180,9 +180,15 @@ export function generateWorktreePath(repoDir: string, branchName: string, locati
 /**
  * Create a new git worktree at worktreePath for the given branch.
  * If the branch doesn't exist, it will be created.
+ * If baseBranch is provided, the new branch will be created from that branch instead of HEAD.
  * Returns the worktree path on success.
  */
-export async function createWorktree(repoDir: string, branchName: string, worktreePath?: string): Promise<string> {
+export async function createWorktree(
+  repoDir: string,
+  branchName: string,
+  worktreePath?: string,
+  baseBranch?: string
+): Promise<string> {
   // Validate branch name first
   const validationError = validateBranchName(branchName)
   if (validationError) {
@@ -203,7 +209,9 @@ export async function createWorktree(repoDir: string, branchName: string, worktr
     cmd = `git -C "${repoDir}" worktree add "${wtPath}" "${branchName}"`
   } else {
     // Create new branch with -b flag
-    cmd = `git -C "${repoDir}" worktree add -b "${branchName}" "${wtPath}"`
+    // If baseBranch is provided, create from that branch instead of HEAD
+    const base = baseBranch || "HEAD"
+    cmd = `git -C "${repoDir}" worktree add -b "${branchName}" "${wtPath}" ${base}`
   }
 
   try {

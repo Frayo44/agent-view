@@ -1,6 +1,6 @@
 /**
  * Home screen with dual-column layout
- * Shows session list on left, preview pane on right (like agent-deck)
+ * Shows session list on left, preview pane on right
  */
 
 import { createMemo, createSignal, For, Show, createEffect, onCleanup } from "solid-js"
@@ -22,15 +22,15 @@ const LOGO = `
 ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║
 ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║
 ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝
-██████╗ ███████╗ ██████╗██╗  ██╗
-██╔══██╗██╔════╝██╔════╝██║ ██╔╝
-██║  ██║█████╗  ██║     █████╔╝
-██║  ██║██╔══╝  ██║     ██╔═██╗
-██████╔╝███████╗╚██████╗██║  ██╗
-╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝
+██╗   ██╗██╗███████╗██╗    ██╗
+██║   ██║██║██╔════╝██║    ██║
+██║   ██║██║█████╗  ██║ █╗ ██║
+╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
+ ╚████╔╝ ██║███████╗╚███╔███╔╝
+  ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
 `.trim()
 
-const SMALL_LOGO = `◆ AGENT DECK`
+const SMALL_LOGO = `◆ AGENT VIEW`
 
 // Status indicators
 const STATUS_ICONS: Record<SessionStatus, string> = {
@@ -262,15 +262,7 @@ export function Home() {
     try {
       const forked = await sync.session.fork({ sourceSessionId: session.id })
       toast.show({ message: `Forked as ${forked.title}`, variant: "success", duration: 2000 })
-
-      // Auto-attach to forked session
-      if (forked.tmuxSession) {
-        previewFetchAbort = true
-        renderer.suspend()
-        attachSessionSync(forked.tmuxSession)
-        renderer.resume()
-        sync.refresh()
-      }
+      sync.refresh()
     } catch (err) {
       toast.error(err as Error)
     }
@@ -514,7 +506,7 @@ export function Home() {
         backgroundColor={theme.backgroundPanel}
       >
         <text fg={theme.primary} attributes={TextAttributes.BOLD}>
-          AGENT DECK
+          AGENT VIEW
         </text>
         <box flexDirection="row" gap={2}>
           <Show when={stats().running > 0}>
@@ -640,6 +632,10 @@ export function Home() {
         <box flexDirection="row">
           <text fg={theme.text}>n</text>
           <text fg={theme.textMuted}> new</text>
+        </box>
+        <box flexDirection="row">
+          <text fg={theme.text}>l</text>
+          <text fg={theme.textMuted}> list</text>
         </box>
         <box flexDirection="row">
           <text fg={theme.text}>d</text>

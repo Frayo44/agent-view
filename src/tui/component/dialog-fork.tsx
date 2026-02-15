@@ -4,12 +4,11 @@
 
 import { createSignal, createEffect, Show } from "solid-js"
 import { TextAttributes, InputRenderable } from "@opentui/core"
-import { useKeyboard, useRenderer } from "@opentui/solid"
+import { useKeyboard } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
-import { attachSessionSync } from "@/core/tmux"
 import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, sanitizeBranchName } from "@/core/git"
 import type { Session } from "@/core/types"
 
@@ -24,7 +23,6 @@ export function DialogFork(props: DialogForkProps) {
   const sync = useSync()
   const toast = useToast()
   const { theme } = useTheme()
-  const renderer = useRenderer()
 
   // Form state
   const [title, setTitle] = createSignal(`${props.session.title} (fork)`)
@@ -124,13 +122,6 @@ export function DialogFork(props: DialogForkProps) {
         ? `Forked as ${forked.title} in worktree`
         : `Forked as ${forked.title}`
       toast.show({ message, variant: "success", duration: 2000 })
-
-      // Auto-attach to forked session
-      if (forked.tmuxSession) {
-        renderer.suspend()
-        attachSessionSync(forked.tmuxSession)
-        renderer.resume()
-      }
 
       dialog.clear()
       sync.refresh()

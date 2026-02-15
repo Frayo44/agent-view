@@ -1,6 +1,6 @@
 /**
  * Tmux session management
- * Based on agent-deck's tmux package with session caching
+ * Based on agent-view's tmux package with session caching
  */
 
 import { spawn, exec } from "child_process"
@@ -345,7 +345,7 @@ export function parseToolStatus(output: string): ToolStatus {
 /**
  * Attach to a tmux session with PTY support
  * Intercepts Ctrl+Q (ASCII 17) to detach and return control to the TUI
- * Based on agent-deck's pty.go implementation
+ * Based on agent-view's pty.go implementation
  */
 export async function attachWithPty(sessionName: string): Promise<void> {
   return new Promise((resolve) => {

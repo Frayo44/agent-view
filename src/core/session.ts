@@ -36,6 +36,11 @@ function getToolCommand(tool: Tool): string {
       return "opencode"
     case "gemini":
       return "gemini"
+    case "codex":
+      return "codex"
+    case "custom":
+      // Custom tool uses the command field directly
+      return process.env.SHELL || "/bin/bash"
     case "shell":
     default:
       return process.env.SHELL || "/bin/bash"

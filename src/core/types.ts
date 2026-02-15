@@ -1,6 +1,6 @@
 /**
  * Core types for Agent Orchestrator
- * Based on agent-deck's data model
+ * Based on agent-view's data model
  */
 
 export type SessionStatus =
@@ -14,6 +14,8 @@ export type Tool =
   | "claude"      // Claude Code
   | "opencode"    // OpenCode
   | "gemini"      // Gemini CLI
+  | "codex"       // OpenAI Codex CLI
+  | "custom"      // Custom command
   | "shell"       // Plain shell
 
 export interface Session {

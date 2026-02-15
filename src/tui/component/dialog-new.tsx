@@ -2,7 +2,7 @@
  * New session dialog with Tab navigation and worktree support
  */
 
-import { createSignal, createEffect, For, Show } from "solid-js"
+import { createSignal, createEffect, For, Show, onCleanup } from "solid-js"
 import { TextAttributes, InputRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
@@ -10,18 +10,60 @@ import { useSync } from "@tui/context/sync"
 import { useRoute } from "@tui/context/route"
 import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
+import { InputAutocomplete } from "@tui/ui/input-autocomplete"
 import { attachSessionSync } from "@/core/tmux"
-import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, sanitizeBranchName } from "@/core/git"
+import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, sanitizeBranchName, branchExists } from "@/core/git"
+import { HistoryManager } from "@/core/history"
+import { getStorage } from "@/core/storage"
 import type { Tool } from "@/core/types"
+import { exec } from "child_process"
+import { promisify } from "util"
+
+const execAsync = promisify(exec)
+
+// Check if a command exists in PATH
+async function commandExists(cmd: string): Promise<boolean> {
+  try {
+    await execAsync(`which ${cmd}`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Get the command for a tool
+function getToolCommand(tool: Tool, customCmd?: string): string {
+  switch (tool) {
+    case "claude":
+      return "claude"
+    case "opencode":
+      return "opencode"
+    case "gemini":
+      return "gemini"
+    case "codex":
+      return "codex"
+    case "custom":
+      return customCmd || "bash"
+    case "shell":
+    default:
+      return process.env.SHELL || "/bin/bash"
+  }
+}
+
+// History managers for autocomplete suggestions
+const projectPathHistory = new HistoryManager("dialog-new:project-paths", 30)
+const branchNameHistory = new HistoryManager("dialog-new:branch-names", 30)
 
 const TOOLS: { value: Tool; label: string; description: string }[] = [
   { value: "claude", label: "Claude Code", description: "Anthropic's Claude CLI" },
   { value: "opencode", label: "OpenCode", description: "OpenCode CLI" },
   { value: "gemini", label: "Gemini", description: "Google's Gemini CLI" },
+  { value: "codex", label: "Codex", description: "OpenAI's Codex CLI" },
+  { value: "custom", label: "Custom", description: "Custom command" },
   { value: "shell", label: "Shell", description: "Plain terminal session" }
 ]
 
-type FocusField = "title" | "tool" | "path" | "worktree" | "branch"
+type FocusField = "title" | "tool" | "customCommand" | "path" | "worktree" | "branch"
 
 export function DialogNew() {
   const dialog = useDialog()
@@ -34,13 +76,35 @@ export function DialogNew() {
   // Form state
   const [title, setTitle] = createSignal("")
   const [selectedTool, setSelectedTool] = createSignal<Tool>("claude")
+  const [customCommand, setCustomCommand] = createSignal("")
   const [projectPath, setProjectPath] = createSignal(process.cwd())
   const [creating, setCreating] = createSignal(false)
+  const [statusMessage, setStatusMessage] = createSignal("")
+  const [spinnerFrame, setSpinnerFrame] = createSignal(0)
+  const [errorMessage, setErrorMessage] = createSignal("")
+
+  // Spinner animation frames
+  const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+  // Animate spinner while creating
+  createEffect(() => {
+    if (creating()) {
+      const interval = setInterval(() => {
+        setSpinnerFrame((f) => (f + 1) % spinnerFrames.length)
+      }, 80)
+      onCleanup(() => clearInterval(interval))
+    }
+  })
 
   // Worktree state
   const [useWorktree, setUseWorktree] = createSignal(false)
   const [worktreeBranch, setWorktreeBranch] = createSignal("")
   const [isInGitRepo, setIsInGitRepo] = createSignal(false)
+  const [useBaseDevelop, setUseBaseDevelop] = createSignal(false)
+  const [developExists, setDevelopExists] = createSignal(false)
+
+  // Storage for history
+  const storage = getStorage()
 
   // Focus state for Tab navigation
   const [focusedField, setFocusedField] = createSignal<FocusField>("title")
@@ -48,10 +112,11 @@ export function DialogNew() {
 
   // Input refs
   let titleInputRef: InputRenderable | undefined
+  let customCommandInputRef: InputRenderable | undefined
   let pathInputRef: InputRenderable | undefined
   let branchInputRef: InputRenderable | undefined
 
-  // Check if current path is a git repo
+  // Check if current path is a git repo and if develop branch exists
   createEffect(async () => {
     const path = projectPath()
     try {
@@ -60,10 +125,22 @@ export function DialogNew() {
       // Reset worktree option if not in git repo
       if (!result) {
         setUseWorktree(false)
+        setDevelopExists(false)
+        setUseBaseDevelop(false)
+      } else {
+        // Check if develop branch exists
+        const repoRoot = await getRepoRoot(path)
+        const hasDevelop = await branchExists(repoRoot, "develop")
+        setDevelopExists(hasDevelop)
+        if (!hasDevelop) {
+          setUseBaseDevelop(false)
+        }
       }
     } catch {
       setIsInGitRepo(false)
       setUseWorktree(false)
+      setDevelopExists(false)
+      setUseBaseDevelop(false)
     }
   })
 
@@ -76,6 +153,13 @@ export function DialogNew() {
       titleInputRef?.focus()
     } else {
       titleInputRef?.blur()
+    }
+
+    // Handle custom command input
+    if (field === "customCommand") {
+      customCommandInputRef?.focus()
+    } else {
+      customCommandInputRef?.blur()
     }
 
     // Handle path input
@@ -95,7 +179,11 @@ export function DialogNew() {
 
   // Get the list of focusable fields based on current state
   function getFocusableFields(): FocusField[] {
-    const fields: FocusField[] = ["title", "tool", "path"]
+    const fields: FocusField[] = ["title", "tool"]
+    if (selectedTool() === "custom") {
+      fields.push("customCommand")
+    }
+    fields.push("path")
     if (isInGitRepo()) {
       fields.push("worktree")
       if (useWorktree()) {
@@ -108,8 +196,25 @@ export function DialogNew() {
   async function handleCreate() {
     if (creating()) return
     setCreating(true)
+    setStatusMessage("Preparing...")
+    setErrorMessage("")
 
     try {
+      // Validate custom command if selected
+      if (selectedTool() === "custom" && !customCommand().trim()) {
+        throw new Error("Please enter a custom command")
+      }
+
+      // Check if the tool command exists
+      const toolCmd = getToolCommand(selectedTool(), customCommand())
+      // For custom commands, extract the base command (first word) to check
+      const cmdToCheck = toolCmd.split(" ")[0] || toolCmd
+      setStatusMessage(`Checking ${cmdToCheck}...`)
+      const exists = await commandExists(cmdToCheck)
+      if (!exists) {
+        throw new Error(`Command '${cmdToCheck}' not found.`)
+      }
+
       let sessionProjectPath = projectPath()
       let worktreePath: string | undefined
       let worktreeRepo: string | undefined
@@ -117,25 +222,37 @@ export function DialogNew() {
 
       // Handle worktree creation
       if (useWorktree() && isInGitRepo()) {
+        setStatusMessage("Creating worktree...")
         const repoRoot = await getRepoRoot(projectPath())
         const branchName = worktreeBranch()
           ? sanitizeBranchName(worktreeBranch())
           : generateBranchName(title() || undefined)
 
-        worktreePath = await createWorktree(repoRoot, branchName)
+        // Determine base branch for worktree
+        const baseBranch = useBaseDevelop() ? "develop" : undefined
+
+        worktreePath = await createWorktree(repoRoot, branchName, undefined, baseBranch)
         sessionProjectPath = worktreePath
         worktreeRepo = repoRoot
         worktreeBranchName = branchName
       }
 
+      setStatusMessage("Starting session...")
       const session = await sync.session.create({
         title: title() || undefined,
         tool: selectedTool(),
+        command: selectedTool() === "custom" ? customCommand() : undefined,
         projectPath: sessionProjectPath,
         worktreePath,
         worktreeRepo,
         worktreeBranch: worktreeBranchName
       })
+
+      // Save to history for autocomplete suggestions
+      projectPathHistory.addEntry(storage, projectPath())
+      if (useWorktree() && worktreeBranchName) {
+        branchNameHistory.addEntry(storage, worktreeBranchName)
+      }
 
       const message = useWorktree()
         ? `Created ${session.title} in worktree`
@@ -153,9 +270,12 @@ export function DialogNew() {
       dialog.clear()
       sync.refresh()
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      setErrorMessage(errorMsg)
       toast.error(err as Error)
     } finally {
       setCreating(false)
+      setStatusMessage("")
     }
   }
 
@@ -193,7 +313,10 @@ export function DialogNew() {
         const newIdx = (toolIndex() - 1 + TOOLS.length) % TOOLS.length
         setToolIndex(newIdx)
         const tool = TOOLS[newIdx]
-        if (tool) setSelectedTool(tool.value)
+        if (tool) {
+          setSelectedTool(tool.value)
+          setErrorMessage("") // Clear error on tool change
+        }
         return
       }
       if (evt.name === "down" || evt.name === "j") {
@@ -201,7 +324,10 @@ export function DialogNew() {
         const newIdx = (toolIndex() + 1) % TOOLS.length
         setToolIndex(newIdx)
         const tool = TOOLS[newIdx]
-        if (tool) setSelectedTool(tool.value)
+        if (tool) {
+          setSelectedTool(tool.value)
+          setErrorMessage("") // Clear error on tool change
+        }
         return
       }
     }
@@ -229,7 +355,7 @@ export function DialogNew() {
       </box>
 
       {/* Title field */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={1} gap={1}>
+      <box paddingLeft={4} paddingRight={4} gap={1}>
         <text fg={focusedField() === "title" ? theme.primary : theme.textMuted}>
           Title (optional)
         </text>
@@ -269,6 +395,7 @@ export function DialogNew() {
                   setSelectedTool(tool.value)
                   setToolIndex(idx())
                   setFocusedField("tool")
+                  setErrorMessage("") // Clear error on tool change
                 }}
                 paddingLeft={1}
                 backgroundColor={
@@ -286,25 +413,49 @@ export function DialogNew() {
             )}
           </For>
         </box>
+
       </box>
 
-      {/* Path field */}
+      {/* Custom command input (only when custom tool is selected) */}
+      <Show when={selectedTool() === "custom"}>
+        <box paddingLeft={4} paddingRight={4} paddingTop={1} gap={1}>
+          <text fg={focusedField() === "customCommand" ? theme.primary : theme.textMuted}>
+            Custom Command
+          </text>
+          <box onMouseUp={() => setFocusedField("customCommand")}>
+            <input
+              placeholder="e.g., aider, cursor, vim"
+              value={customCommand()}
+              onInput={setCustomCommand}
+              focusedBackgroundColor={theme.backgroundElement}
+              cursorColor={theme.primary}
+              focusedTextColor={theme.text}
+              ref={(r) => {
+                customCommandInputRef = r
+              }}
+            />
+          </box>
+        </box>
+      </Show>
+
+      {/* Path field with autocomplete */}
       <box paddingLeft={4} paddingRight={4} paddingTop={1} gap={1}>
         <text fg={focusedField() === "path" ? theme.primary : theme.textMuted}>
           Project Path
         </text>
-        <box onMouseUp={() => setFocusedField("path")}>
-          <input
-            value={projectPath()}
-            onInput={setProjectPath}
-            focusedBackgroundColor={theme.backgroundElement}
-            cursorColor={theme.primary}
-            focusedTextColor={theme.text}
-            ref={(r) => {
-              pathInputRef = r
-            }}
-          />
-        </box>
+        <InputAutocomplete
+          value={projectPath()}
+          onInput={setProjectPath}
+          suggestions={projectPathHistory.getFiltered(storage, projectPath())}
+          onSelect={setProjectPath}
+          focusedBackgroundColor={theme.backgroundElement}
+          cursorColor={theme.primary}
+          focusedTextColor={theme.text}
+          onFocus={() => setFocusedField("path")}
+          ref={(r) => {
+            pathInputRef = r
+          }}
+        />
       </box>
 
       {/* Worktree option (only shown in git repos) */}
@@ -326,27 +477,61 @@ export function DialogNew() {
             </text>
           </box>
 
-          {/* Branch name input (only when worktree is enabled) */}
+          {/* Branch name input with autocomplete (only when worktree is enabled) */}
           <Show when={useWorktree()}>
             <box paddingLeft={4} gap={1}>
               <text fg={focusedField() === "branch" ? theme.primary : theme.textMuted}>
                 Branch name
               </text>
-              <box onMouseUp={() => setFocusedField("branch")}>
-                <input
-                  placeholder="auto-generated from title if empty"
-                  value={worktreeBranch()}
-                  onInput={setWorktreeBranch}
-                  focusedBackgroundColor={theme.backgroundElement}
-                  cursorColor={theme.primary}
-                  focusedTextColor={theme.text}
-                  ref={(r) => {
-                    branchInputRef = r
-                  }}
-                />
-              </box>
+              <InputAutocomplete
+                placeholder="auto-generated from title if empty"
+                value={worktreeBranch()}
+                onInput={setWorktreeBranch}
+                suggestions={branchNameHistory.getFiltered(storage, worktreeBranch())}
+                onSelect={setWorktreeBranch}
+                focusedBackgroundColor={theme.backgroundElement}
+                cursorColor={theme.primary}
+                focusedTextColor={theme.text}
+                onFocus={() => setFocusedField("branch")}
+                ref={(r) => {
+                  branchInputRef = r
+                }}
+              />
             </box>
+
+            {/* Base on develop toggle */}
+            <Show when={developExists()}>
+              <box
+                flexDirection="row"
+                gap={1}
+                paddingLeft={4}
+                onMouseUp={(e) => {
+                  e.stopPropagation()
+                  setUseBaseDevelop(!useBaseDevelop())
+                }}
+              >
+                <text fg={useBaseDevelop() ? theme.primary : theme.textMuted}>
+                  {useBaseDevelop() ? "[x]" : "[ ]"}
+                </text>
+                <text fg={theme.textMuted}>Base on develop</text>
+              </box>
+            </Show>
           </Show>
+        </box>
+      </Show>
+
+      {/* Error display */}
+      <Show when={errorMessage()}>
+        <box paddingLeft={4} paddingRight={4} paddingTop={1}>
+          <box
+            backgroundColor={theme.error}
+            padding={1}
+            onMouseUp={() => setErrorMessage("")}
+          >
+            <text fg={theme.selectedListItemText} wrapMode="word">
+              {errorMessage()}
+            </text>
+          </box>
         </box>
       </Show>
 
@@ -359,7 +544,7 @@ export function DialogNew() {
           alignItems="center"
         >
           <text fg={theme.selectedListItemText} attributes={TextAttributes.BOLD}>
-            {creating() ? "Creating..." : "Create Session"}
+            {creating() ? `${spinnerFrames[spinnerFrame()]} ${statusMessage()}` : "Create Session"}
           </text>
         </box>
       </box>
@@ -367,7 +552,7 @@ export function DialogNew() {
       {/* Footer with keybind hints */}
       <box paddingLeft={4} paddingRight={4} paddingTop={1}>
         <text fg={theme.textMuted}>
-          Tab: next field | Shift+Tab: prev | Enter: create
+          {creating() ? statusMessage() : "Tab | Enter: create"}
         </text>
       </box>
     </box>
