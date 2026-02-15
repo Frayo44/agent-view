@@ -30,19 +30,20 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
+        run: bun install
+
+      - name: Rebuild node-pty from source
         run: |
-          # Use npm to install node-pty (compiles from source correctly)
-          npm install node-pty --build-from-source
-          # Install the rest with bun
-          bun install
+          cd node_modules/node-pty
+          rm -rf build prebuilds
+          node scripts/post-install.js
+          cd ../..
 
       - name: Type check
         run: bun run typecheck
 
       - name: Run tests
-        run: |
-          # Try with bun first, fallback to node if ABI mismatch
-          bun test || npx tsx --test src/**/*.test.ts
+        run: bun test
 
       - name: Build
         run: bun run build
