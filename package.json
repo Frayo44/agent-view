@@ -1,0 +1,38 @@
+{
+  "name": "agent-orchestrator",
+  "version": "0.0.3",
+  "description": "OpenTUI-based Agent Management",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "agent-orchestrator": "./dist/cli/index.js",
+    "ao": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "compile": "bun run scripts/compile.ts",
+    "compile:all": "bun run scripts/compile.ts --all",
+    "release": "bun run scripts/release.ts",
+    "dev": "bun run scripts/build.ts && bun run dist/index.js",
+    "start": "bun run dist/index.js",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.79",
+    "@opentui/solid": "^0.1.79",
+    "fuzzysort": "^3.0.0",
+    "node-pty": "1.0.0",
+    "remeda": "^2.0.0",
+    "solid-js": "^1.9.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@babel/preset-typescript": "^7.24.0",
+    "@tsconfig/bun": "^1.0.0",
+    "@types/bun": "latest",
+    "babel-preset-solid": "^1.8.0",
+    "typescript": "^5.3.0"
+  }
+}

@@ -1,0 +1,4 @@
+[install]
+# Use faster resolution
+peer = false
+production = false
