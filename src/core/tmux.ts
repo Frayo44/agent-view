@@ -5,7 +5,15 @@
 
 import { spawn, exec } from "child_process"
 import { promisify } from "util"
-import * as pty from "node-pty"
+
+// Lazy load node-pty to avoid import errors in test environments
+let pty: typeof import("node-pty") | null = null
+async function getPty() {
+  if (!pty) {
+    pty = await import("node-pty")
+  }
+  return pty
+}
 
 const execAsync = promisify(exec)
 
@@ -348,9 +356,10 @@ export function parseToolStatus(output: string): ToolStatus {
  * Based on agent-view's pty.go implementation
  */
 export async function attachWithPty(sessionName: string): Promise<void> {
+  const ptyModule = await getPty()
   return new Promise((resolve) => {
     // Spawn tmux attach with PTY
-    const ptyProcess = pty.spawn("tmux", ["attach-session", "-t", sessionName], {
+    const ptyProcess = ptyModule.spawn("tmux", ["attach-session", "-t", sessionName], {
       name: "xterm-256color",
       cols: process.stdout.columns || 80,
       rows: process.stdout.rows || 24,
