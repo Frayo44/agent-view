@@ -10,6 +10,9 @@
   },
   "scripts": {
     "build": "bun run scripts/build.ts",
+    "compile": "bun run scripts/compile.ts",
+    "compile:all": "bun run scripts/compile.ts --all",
+    "release": "bun run scripts/release.ts",
     "dev": "bun run scripts/build.ts && bun run dist/index.js",
     "start": "bun run dist/index.js",
     "test": "bun test",
@@ -19,10 +22,10 @@
   "dependencies": {
     "@opentui/core": "^0.1.79",
     "@opentui/solid": "^0.1.79",
-    "solid-js": "^1.9.0",
     "fuzzysort": "^3.0.0",
+    "node-pty": "1.0.0",
     "remeda": "^2.0.0",
-    "node-pty": "^1.0.0"
+    "solid-js": "^1.9.0"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

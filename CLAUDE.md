@@ -37,12 +37,51 @@ src/
 - **Auto-suggestions:** Fuzzy search for previously used paths and branch names
 - **Status Monitoring:** Real-time session status (running, waiting, idle, error)
 
+## Installation
+
+### Quick Install (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/frayo44/agent-view/main/install.sh | bash
+```
+
+This will:
+- Install Bun if not present
+- Clone the repository to `~/.agent-view`
+- Build the project
+- Create `agent-view` and `av` commands in `~/.local/bin`
+
+### Manual Install
+
+```bash
+git clone https://github.com/frayo44/agent-view.git
+cd agent-view
+bun install
+bun run build
+```
+
+### Compile to Standalone Binary
+
+```bash
+bun run compile        # Compile for current platform
+bun run compile:all    # Compile for all platforms (darwin/linux, x64/arm64)
+```
+
+Binaries are output to the `bin/` directory.
+
+### Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/frayo44/agent-view/main/uninstall.sh | bash
+```
+
 ## Development
 
 ```bash
 bun install      # Install dependencies
 bun run dev      # Run in development mode
 bun run build    # Build for production
+bun run compile  # Compile standalone binary
 bun test         # Run tests
 ```
 
