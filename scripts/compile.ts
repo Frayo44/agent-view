@@ -95,7 +95,7 @@ async function compileForPlatform(platform: Platform): Promise<boolean> {
     await mkdir(packageDir, { recursive: true })
     await mkdir(prebuildsDir, { recursive: true })
 
-    // Compile binary
+    // Compile binary from pre-built dist (which includes Solid transforms)
     const proc = Bun.spawn({
       cmd: [
         "bun",
@@ -105,7 +105,7 @@ async function compileForPlatform(platform: Platform): Promise<boolean> {
         target,
         "--outfile",
         binaryPath,
-        "./src/index.ts",
+        "./dist/index.js",
       ],
       cwd: dir,
       stdout: "pipe",
