@@ -9,11 +9,12 @@ import path from "path"
 import os from "os"
 
 // File logger for debugging
-const logFile = path.join(os.homedir(), ".agent-orchestrator", "debug.log")
+const logDir = path.join(os.homedir(), ".agent-orchestrator")
+const logFile = path.join(logDir, "debug.log")
+fs.mkdirSync(logDir, { recursive: true })
 function log(...args: unknown[]) {
   const msg = `[${new Date().toISOString()}] ${args.map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ")}\n`
   fs.appendFileSync(logFile, msg)
-  console.log(...args)
 }
 import { Switch, Match, createEffect, ErrorBoundary, Show, onMount } from "solid-js"
 import { RouteProvider, useRoute } from "@tui/context/route"
