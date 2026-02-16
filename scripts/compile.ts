@@ -135,7 +135,14 @@ async function compileForPlatform(platform: Platform): Promise<boolean> {
     const launcherPath = path.join(packageDir, "run.sh")
     const launcher = `#!/usr/bin/env bash
 # Agent View launcher - sets up native module paths
-SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+# Resolve symlinks to find the real script location
+SOURCE="\${BASH_SOURCE[0]}"
+while [ -L "\$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "\$SOURCE")" && pwd)"
+  SOURCE="$(readlink "\$SOURCE")"
+  [[ \$SOURCE != /* ]] && SOURCE="\$DIR/\$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "\$SOURCE")" && pwd)"
 export NODE_PTY_PREBUILDS="\$SCRIPT_DIR/prebuilds"
 exec "\$SCRIPT_DIR/agent-view" "\$@"
 `
