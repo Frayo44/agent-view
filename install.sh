@@ -306,7 +306,7 @@ fi
 echo ""
 echo -e "${GREEN}Installation complete!${NC}"
 echo ""
-echo -e "  Run ${GREEN}agent-view${NC} or ${GREEN}av${NC} to start"
+echo -e "  Run ${GREEN}agent-view${NC} or ${GREEN}av${NC} to open Agent View"
 echo ""
 echo -e "  ${MUTED}Binary: ${NC}$INSTALL_DIR/$APP"
 echo ""

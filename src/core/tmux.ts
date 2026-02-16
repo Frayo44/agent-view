@@ -437,6 +437,14 @@ export function attachSessionSync(sessionName: string): void {
   // Bind Ctrl+Q to detach in this session (C-q = ASCII 17)
   spawnSync("tmux", ["bind-key", "-n", "C-q", "detach-client"], { stdio: "ignore" })
 
+  // Configure status bar with shortcuts
+  spawnSync("tmux", ["set-option", "-t", sessionName, "status", "on"], { stdio: "ignore" })
+  spawnSync("tmux", ["set-option", "-t", sessionName, "status-position", "bottom"], { stdio: "ignore" })
+  spawnSync("tmux", ["set-option", "-t", sessionName, "status-style", "bg=#1e1e2e,fg=#cdd6f4"], { stdio: "ignore" })
+  spawnSync("tmux", ["set-option", "-t", sessionName, "status-left", ""], { stdio: "ignore" })
+  spawnSync("tmux", ["set-option", "-t", sessionName, "status-right-length", "100"], { stdio: "ignore" })
+  spawnSync("tmux", ["set-option", "-t", sessionName, "status-right", "#[fg=#89b4fa]Ctrl+Q#[fg=#6c7086] detach  #[fg=#89b4fa]Ctrl+C#[fg=#6c7086] cancel"], { stdio: "ignore" })
+
   // Exit alternate screen buffer (TUI uses this)
   process.stdout.write("\x1b[?1049l")
   // Clear screen

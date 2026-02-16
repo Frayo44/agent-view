@@ -72,6 +72,13 @@ export async function tui(options: TuiOptions = {}) {
       } catch (e) {
         // Ignore cleanup errors
       }
+
+      // Restore terminal state before exiting
+      process.stdout.write("\x1b[?1049l") // Exit alternate screen buffer
+      process.stdout.write("\x1b[?25h")   // Show cursor
+      process.stdout.write("\x1b[0m")     // Reset all attributes
+      process.stdout.write("\x1b[2J\x1b[H") // Clear screen and move to top
+
       resolve()
       process.exit(0)
     }
