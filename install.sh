@@ -97,6 +97,74 @@ detect_platform() {
     echo "${os}-${arch}"
 }
 
+# Check for tmux and offer to install
+check_tmux() {
+    if command -v tmux &> /dev/null; then
+        return 0
+    fi
+
+    echo -e "${MUTED}tmux is not installed.${NC}"
+    echo "Agent View requires tmux to function."
+    echo ""
+
+    local os_type="$(uname -s)"
+
+    if [[ "$os_type" == "Darwin" ]]; then
+        if command -v brew &> /dev/null; then
+            read -p "Install tmux via Homebrew? [Y/n] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                echo -e "Installing tmux..."
+                brew install tmux
+            fi
+        else
+            echo "Install tmux with: brew install tmux"
+            echo "(Install Homebrew first: https://brew.sh)"
+        fi
+    else
+        if command -v apt-get &> /dev/null; then
+            read -p "Install tmux via apt? [Y/n] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                echo -e "Installing tmux..."
+                sudo apt-get update && sudo apt-get install -y tmux
+            fi
+        elif command -v dnf &> /dev/null; then
+            read -p "Install tmux via dnf? [Y/n] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                echo -e "Installing tmux..."
+                sudo dnf install -y tmux
+            fi
+        elif command -v pacman &> /dev/null; then
+            read -p "Install tmux via pacman? [Y/n] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                echo -e "Installing tmux..."
+                sudo pacman -S --noconfirm tmux
+            fi
+        else
+            echo "Please install tmux manually:"
+            echo "  sudo apt install tmux    # Debian/Ubuntu"
+            echo "  sudo dnf install tmux    # Fedora"
+            echo "  sudo pacman -S tmux      # Arch"
+        fi
+    fi
+
+    if ! command -v tmux &> /dev/null; then
+        echo ""
+        read -p "tmux not found. Continue anyway? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}tmux installed successfully!${NC}"
+    fi
+}
+
+check_tmux
+
 if [ -n "$binary_path" ]; then
     if [ ! -f "$binary_path" ]; then
         echo -e "${RED}Error: Binary not found at ${binary_path}${NC}"
