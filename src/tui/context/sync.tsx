@@ -119,6 +119,10 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           const session = await manager.fork(options)
           refresh()
           return session
+        },
+        rename(id: string, title: string): void {
+          manager.updateTitle(id, title)
+          refresh()
         }
       },
       group: {

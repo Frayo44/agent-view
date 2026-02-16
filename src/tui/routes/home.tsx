@@ -12,6 +12,7 @@ import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
 import { DialogNew } from "@tui/component/dialog-new"
 import { DialogFork } from "@tui/component/dialog-fork"
+import { DialogRename } from "@tui/component/dialog-rename"
 import { attachSessionSync, capturePane } from "@/core/tmux"
 import type { Session, SessionStatus } from "@/core/types"
 import { formatRelativeTime, formatSmartTime, truncatePath } from "@tui/util/locale"
@@ -190,16 +191,9 @@ export function Home() {
 
   async function handleRestart(session: Session) {
     try {
-      const restarted = await sync.session.restart(session.id)
+      await sync.session.restart(session.id)
       toast.show({ message: "Session restarted", variant: "success", duration: 2000 })
-      // Auto-attach after restart
-      if (restarted.tmuxSession) {
-        previewFetchAbort = true
-        renderer.suspend()
-        attachSessionSync(restarted.tmuxSession)
-        renderer.resume()
-        sync.refresh()
-      }
+      sync.refresh()
     } catch (err) {
       toast.error(err as Error)
     }
@@ -261,11 +255,19 @@ export function Home() {
       }
     }
 
-    // r to restart
-    if (evt.name === "r") {
+    // r to restart (lowercase only)
+    if (evt.name === "r" && !evt.shift) {
       const session = selectedSession()
       if (session) {
         handleRestart(session)
+      }
+    }
+
+    // R (Shift+r) to rename
+    if (evt.name === "r" && evt.shift) {
+      const session = selectedSession()
+      if (session) {
+        dialog.push(() => <DialogRename session={session} />)
       }
     }
 
@@ -597,6 +599,10 @@ export function Home() {
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>r</text>
           <text fg={theme.textMuted}>restart</text>
+        </box>
+        <box flexDirection="column" alignItems="center">
+          <text fg={theme.text}>R</text>
+          <text fg={theme.textMuted}>rename</text>
         </box>
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>f</text>

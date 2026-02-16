@@ -12,6 +12,7 @@ import { useRoute } from "@tui/context/route"
 import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
 import { DialogSessions } from "@tui/component/dialog-sessions"
+import { DialogRename } from "@tui/component/dialog-rename"
 import { useCommandDialog } from "@tui/component/dialog-command"
 import { getSessionManager } from "@/core/session"
 import type { Session as SessionType, SessionStatus } from "@/core/types"
@@ -91,6 +92,12 @@ export function Session() {
   useKeyboard((evt) => {
     if (evt.name === "q" && !inputRef?.focused) {
       route.navigate({ type: "home" })
+    }
+    if (evt.name === "R" && evt.shift && !inputRef?.focused) {
+      const s = session()
+      if (s) {
+        dialog.replace(() => <DialogRename session={s} />)
+      }
     }
     if (evt.name === "l" && evt.ctrl) {
       dialog.replace(() => <DialogSessions />)

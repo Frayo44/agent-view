@@ -29,18 +29,17 @@ export function SessionFooter(props: { session: Session }) {
       {/* Right: Keybind hints */}
       <box flexDirection="row" gap={2}>
         <text>
+          <span style={{ fg: theme.textMuted }}>Shift+R</span>
+          <span style={{ fg: theme.text }}> rename</span>
+        </text>
+        <text>
           <span style={{ fg: theme.textMuted }}>Ctrl+K</span>
           <span style={{ fg: theme.text }}> commands</span>
         </text>
         <text>
           <span style={{ fg: theme.textMuted }}>q</span>
-          <span style={{ fg: theme.text }}> detach</span>
+          <span style={{ fg: theme.text }}> back</span>
         </text>
-        <text>
-          <span style={{ fg: theme.textMuted }}>?</span>
-          <span style={{ fg: theme.text }}> help</span>
-        </text>
-        <text fg={theme.textMuted}>v1.0.0</text>
       </box>
     </box>
   )
