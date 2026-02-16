@@ -10,7 +10,6 @@ import type { Tool } from "./types"
 
 export interface WorktreeConfig {
   defaultBaseBranch?: string
-  command?: string
   autoCleanup?: boolean
 }
 
@@ -29,7 +28,6 @@ const DEFAULT_CONFIG: AppConfig = {
   theme: "dark",
   worktree: {
     defaultBaseBranch: "main",
-    command: "git worktree",
     autoCleanup: true
   },
   defaultGroup: "default"

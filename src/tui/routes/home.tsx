@@ -13,10 +13,12 @@ import { useToast } from "@tui/ui/toast"
 import { DialogNew } from "@tui/component/dialog-new"
 import { DialogFork } from "@tui/component/dialog-fork"
 import { DialogRename } from "@tui/component/dialog-rename"
-import { attachSessionSync, capturePane } from "@/core/tmux"
-import type { Session, SessionStatus } from "@/core/types"
+import { attachSessionSync, capturePane, wasCommandPaletteRequested } from "@/core/tmux"
+import { useCommandDialog } from "@tui/component/dialog-command"
+import type { Session } from "@/core/types"
 import { formatRelativeTime, formatSmartTime, truncatePath } from "@tui/util/locale"
 import { STATUS_ICONS } from "@tui/util/status"
+import { sortSessionsByCreatedAt } from "@tui/util/session"
 
 const LOGO = `
  █████╗  ██████╗ ███████╗███╗   ██╗████████╗
@@ -50,6 +52,7 @@ export function Home() {
   const dialog = useDialog()
   const toast = useToast()
   const renderer = useRenderer()
+  const command = useCommandDialog()
 
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [previewContent, setPreviewContent] = createSignal<string>("")
@@ -72,16 +75,9 @@ export function Home() {
     return dimensions().width - leftWidth() - 1 // -1 for separator
   })
 
-  // Get sorted sessions (running first, then waiting, then others)
+  // Get sorted sessions by creation time (stable order)
   const sessions = createMemo(() => {
-    const all = sync.session.list()
-    const statusOrder: SessionStatus[] = ["running", "waiting", "idle", "stopped", "error"]
-    return [...all].sort((a, b) => {
-      const aOrder = statusOrder.indexOf(a.status)
-      const bOrder = statusOrder.indexOf(b.status)
-      if (aOrder !== bOrder) return aOrder - bOrder
-      return b.lastAccessed.getTime() - a.lastAccessed.getTime()
-    })
+    return sortSessionsByCreatedAt(sync.session.list())
   })
 
   // Keep selection in bounds
@@ -178,6 +174,11 @@ export function Home() {
     }
     renderer.resume()
     sync.refresh()
+
+    // Check if user pressed Ctrl+K to open command palette
+    if (wasCommandPaletteRequested()) {
+      command.open()
+    }
   }
 
   async function handleDelete(session: Session) {

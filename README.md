@@ -67,16 +67,31 @@ av
 
 ### Keyboard Shortcuts
 
+**Dashboard:**
+
 | Key | Action |
 |-----|--------|
 | `n` | Create new session |
 | `l` | List all sessions |
 | `Enter` | Attach to selected session |
+| `↑/k` | Navigate up |
+| `↓/j` | Navigate down |
 | `d` | Delete session |
 | `r` | Restart session |
-| `s` | Stop session |
+| `R` | Rename session |
+| `f` | Fork session |
+| `F` | Fork session with worktree |
 | `Ctrl+K` | Open command palette |
+| `?` | Show help |
 | `q` | Quit |
+
+**Inside attached session:**
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+K` | Detach and open command palette |
+| `Ctrl+T` | Open terminal pane |
+| `Ctrl+Q` | Detach (return to dashboard) |
 
 ### Create a Session
 

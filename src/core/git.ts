@@ -5,7 +5,6 @@
 
 import { exec } from "child_process"
 import { promisify } from "util"
-import { stat } from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 
@@ -155,15 +154,13 @@ export function generateWorktreePath(repoDir: string, branchName: string): strin
  * Create a new git worktree at worktreePath for the given branch.
  * If the branch doesn't exist, it will be created.
  * If baseBranch is provided, the new branch will be created from that branch instead of HEAD.
- * If worktreeCommand is provided, it will be used instead of "git worktree" (e.g., "git fast-worktree").
  * Returns the worktree path on success.
  */
 export async function createWorktree(
   repoDir: string,
   branchName: string,
   worktreePath?: string,
-  baseBranch?: string,
-  worktreeCommand?: string
+  baseBranch?: string
 ): Promise<string> {
   // Validate branch name first
   const validationError = validateBranchName(branchName)
@@ -179,35 +176,21 @@ export async function createWorktree(
   // Generate worktree path if not provided
   const wtPath = worktreePath || generateWorktreePath(repoDir, branchName)
 
-  // Use custom worktree command if provided, otherwise default to "git worktree"
-  const wtCmd = worktreeCommand || "git worktree"
-
   let cmd: string
   if (await branchExists(repoDir, branchName)) {
     // Use existing branch
-    cmd = `cd "${repoDir}" && ${wtCmd} add "${wtPath}" "${branchName}"`
+    cmd = `cd "${repoDir}" && git worktree add "${wtPath}" "${branchName}"`
   } else {
     // Create new branch with -b flag
     // If baseBranch is provided, create from that branch instead of HEAD
     const base = baseBranch || "HEAD"
-    cmd = `cd "${repoDir}" && ${wtCmd} add -b "${branchName}" "${wtPath}" ${base}`
+    cmd = `cd "${repoDir}" && git worktree add -b "${branchName}" "${wtPath}" ${base}`
   }
 
   try {
     await execAsync(cmd)
     return wtPath
   } catch (err: any) {
-    // Some tools (like git-fast-worktree) may return non-zero exit code
-    // even when the worktree was created successfully. Check if it exists.
-    try {
-      const stats = await stat(wtPath)
-      if (stats.isDirectory()) {
-        // Worktree was created despite the error
-        return wtPath
-      }
-    } catch {
-      // Worktree doesn't exist, throw original error
-    }
     const output = err.stderr || err.stdout || err.message
     throw new Error(`failed to create worktree: ${output}`)
   }

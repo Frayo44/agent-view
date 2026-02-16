@@ -45,7 +45,6 @@ describe("config", () => {
       expect(config.defaultGroup).toBe("default")
       expect(config.worktree).toBeDefined()
       expect(config.worktree?.defaultBaseBranch).toBe("main")
-      expect(config.worktree?.command).toBe("git worktree")
       expect(config.worktree?.autoCleanup).toBe(true)
     })
 
@@ -104,7 +103,7 @@ describe("config", () => {
 
       // Verify default structure that should be merged
       expect(defaults.theme).toBe("dark")
-      expect(defaults.worktree?.command).toBe("git worktree")
+      expect(defaults.worktree?.autoCleanup).toBe(true)
     })
   })
 
@@ -125,7 +124,6 @@ describe("config", () => {
         theme: "dark",
         worktree: {
           defaultBaseBranch: "main",
-          command: "git worktree",
           autoCleanup: true
         },
         defaultGroup: "default"
@@ -134,7 +132,6 @@ describe("config", () => {
       expect(config.defaultTool).toBe("claude")
       expect(config.theme).toBe("dark")
       expect(config.worktree?.defaultBaseBranch).toBe("main")
-      expect(config.worktree?.command).toBe("git worktree")
       expect(config.worktree?.autoCleanup).toBe(true)
       expect(config.defaultGroup).toBe("default")
     })
@@ -143,12 +140,12 @@ describe("config", () => {
       const config: AppConfig = {
         defaultTool: "opencode",
         worktree: {
-          command: "git fast-worktree"
+          autoCleanup: false
         }
       }
 
       expect(config.defaultTool).toBe("opencode")
-      expect(config.worktree?.command).toBe("git fast-worktree")
+      expect(config.worktree?.autoCleanup).toBe(false)
       expect(config.worktree?.defaultBaseBranch).toBeUndefined()
     })
 
@@ -174,16 +171,6 @@ describe("config", () => {
   })
 
   describe("worktree config", () => {
-    test("supports custom worktree command", () => {
-      const config: AppConfig = {
-        worktree: {
-          command: "git fast-worktree"
-        }
-      }
-
-      expect(config.worktree?.command).toBe("git fast-worktree")
-    })
-
     test("supports different base branches", () => {
       const branches = ["main", "master", "develop", "staging"]
 

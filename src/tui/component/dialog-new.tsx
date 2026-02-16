@@ -20,10 +20,23 @@ import type { Tool } from "@/core/types"
 import { getToolCommand } from "@/core/types"
 import { exec } from "child_process"
 import { promisify } from "util"
+import { existsSync } from "fs"
+import path from "path"
 
 const execAsync = promisify(exec)
 
-async function commandExists(cmd: string): Promise<boolean> {
+async function commandExists(cmd: string, cwd?: string): Promise<boolean> {
+  // For relative paths (./something), check if file exists in cwd
+  if (cmd.startsWith("./") || cmd.startsWith("../")) {
+    if (!cwd) return false
+    const fullPath = path.join(cwd, cmd)
+    return existsSync(fullPath)
+  }
+  // For absolute paths, check if file exists
+  if (cmd.startsWith("/")) {
+    return existsSync(cmd)
+  }
+  // For commands in PATH, use which
   try {
     await execAsync(`which ${cmd}`)
     return true
@@ -192,15 +205,25 @@ export function DialogNew() {
         throw new Error("Please enter a custom command")
       }
 
+      // Validate and set project path first (needed for relative command validation)
+      let sessionProjectPath = projectPath().trim() || process.cwd()
+      // Expand ~ to home directory (shell doesn't do this for us)
+      if (sessionProjectPath.startsWith("~")) {
+        sessionProjectPath = sessionProjectPath.replace("~", process.env.HOME || "")
+      }
+      if (!existsSync(sessionProjectPath)) {
+        throw new Error(`Directory '${sessionProjectPath}' does not exist`)
+      }
+
+      // Now validate the command (pass cwd for relative path resolution)
       const toolCmd = getToolCommand(selectedTool(), customCommand())
       const cmdToCheck = toolCmd.split(" ")[0] || toolCmd
       setStatusMessage(`Checking ${cmdToCheck}...`)
-      const exists = await commandExists(cmdToCheck)
+      const exists = await commandExists(cmdToCheck, sessionProjectPath)
       if (!exists) {
         throw new Error(`Command '${cmdToCheck}' not found.`)
       }
 
-      let sessionProjectPath = projectPath()
       let worktreePath: string | undefined
       let worktreeRepo: string | undefined
       let worktreeBranchName: string | undefined
@@ -227,9 +250,8 @@ export function DialogNew() {
         }
 
         const wtPath = generateWorktreePath(repoRoot, branchName)
-        const worktreeCommand = worktreeConfig.command
 
-        worktreePath = await createWorktree(repoRoot, branchName, wtPath, baseBranch, worktreeCommand)
+        worktreePath = await createWorktree(repoRoot, branchName, wtPath, baseBranch)
         sessionProjectPath = worktreePath
         worktreeRepo = repoRoot
         worktreeBranchName = branchName
@@ -278,6 +300,13 @@ export function DialogNew() {
   }
 
   useKeyboard((evt) => {
+    // ESC to close dialog - handle explicitly since input fields may prevent default
+    if (evt.name === "escape") {
+      evt.preventDefault()
+      dialog.clear()
+      return
+    }
+
     // Enter to create (when not in multi-line context)
     if (evt.name === "return" && !evt.shift) {
       evt.preventDefault()
