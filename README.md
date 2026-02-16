@@ -29,16 +29,16 @@ When working with AI coding agents, you often need to run multiple agents on dif
 
 ## Installation
 
-### Quick Install
+### Quick Install (requires [GitHub CLI](https://cli.github.com/))
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/anthropics/agent-view/main/install.sh | bash
+gh release download -R frayo44/agent-view -p 'install.sh' -O - | bash
 ```
 
 ### Manual Install
 
 ```bash
-git clone https://github.com/anthropics/agent-view.git
+git clone git@github.com:frayo44/agent-view.git
 cd agent-view
 bun install
 bun run build
