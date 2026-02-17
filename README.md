@@ -6,6 +6,16 @@ Run multiple AI coding agents in parallel and manage them from a single dashboar
 
 Works with **Claude Code**, **Gemini CLI**, **OpenCode**, **Codex CLI**, and any custom AI coding tool.
 
+## Supported Platforms
+
+| Platform | Architecture | Status |
+|----------|--------------|--------|
+| macOS    | Apple Silicon (arm64) | ✅ Supported |
+| macOS    | Intel (x64) | ✅ Supported |
+| Linux    | arm64 | ✅ Supported |
+| Linux    | x64 | ✅ Supported |
+| WSL      | x64 | ✅ Supported |
+
 ---
 
 ### ⭐ If you find this useful, please give it a star to help others discover it!
