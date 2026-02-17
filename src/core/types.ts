@@ -68,6 +68,12 @@ export interface MCPStatus {
   error?: string
 }
 
+export type ClaudeSessionMode = "new" | "resume"
+
+export interface ClaudeOptions {
+  sessionMode: ClaudeSessionMode
+}
+
 export interface SessionCreateOptions {
   title?: string
   projectPath: string
@@ -79,6 +85,7 @@ export interface SessionCreateOptions {
   worktreePath?: string
   worktreeRepo?: string
   worktreeBranch?: string
+  claudeOptions?: ClaudeOptions
 }
 
 export interface SessionForkOptions {

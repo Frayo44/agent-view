@@ -169,6 +169,25 @@ export interface ClaudeSessionInfo {
   lastModified: Date
 }
 
+import type { ClaudeOptions } from "./types"
+
+/**
+ * Build the Claude command based on options
+ * - "new" mode: returns plain "claude"
+ * - "resume" mode: returns "claude --resume" (Claude will prompt for session selection)
+ */
+export function buildClaudeCommand(options?: ClaudeOptions): string {
+  if (!options || options.sessionMode === "new") {
+    return "claude"
+  }
+
+  if (options.sessionMode === "resume") {
+    return "claude --resume"
+  }
+
+  return "claude"
+}
+
 /**
  * Get information about the current Claude session for a project
  */

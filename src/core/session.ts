@@ -11,7 +11,7 @@ import { randomUUID } from "crypto"
 import path from "path"
 import fs from "fs"
 import os from "os"
-import { getClaudeSessionID, buildForkCommand, canFork } from "./claude"
+import { getClaudeSessionID, buildForkCommand, canFork, buildClaudeCommand } from "./claude"
 
 const logFile = path.join(os.homedir(), ".agent-orchestrator", "debug.log")
 function log(...args: unknown[]) {
@@ -121,7 +121,16 @@ export class SessionManager {
     const title = options.title || generateTitle()
     const id = randomUUID()
     const tmuxName = tmux.generateSessionName(title)
-    const command = options.command || getToolCommand(options.tool)
+
+    // Determine command - handle Claude options for resume
+    let command: string
+    if (options.command) {
+      command = options.command
+    } else if (options.tool === "claude" && options.claudeOptions) {
+      command = buildClaudeCommand(options.claudeOptions)
+    } else {
+      command = getToolCommand(options.tool)
+    }
 
     log("Creating tmux session:", tmuxName, "command:", command)
 
@@ -141,6 +150,12 @@ export class SessionManager {
       throw err
     }
 
+    // Build toolData - store Claude session mode
+    const toolData: Record<string, unknown> = {}
+    if (options.tool === "claude" && options.claudeOptions) {
+      toolData.claudeSessionMode = options.claudeOptions.sessionMode
+    }
+
     const session: Session = {
       id,
       title,
@@ -158,7 +173,7 @@ export class SessionManager {
       worktreePath: options.worktreePath || "",
       worktreeRepo: options.worktreeRepo || "",
       worktreeBranch: options.worktreeBranch || "",
-      toolData: {},
+      toolData,
       acknowledged: false
     }
 

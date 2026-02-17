@@ -16,7 +16,7 @@ import { attachSessionSync } from "@/core/tmux"
 import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists } from "@/core/git"
 import { HistoryManager } from "@/core/history"
 import { getStorage } from "@/core/storage"
-import type { Tool } from "@/core/types"
+import type { Tool, ClaudeSessionMode } from "@/core/types"
 import { getToolCommand } from "@/core/types"
 import { exec } from "child_process"
 import { promisify } from "util"
@@ -58,7 +58,7 @@ const TOOLS: { value: Tool; label: string; description: string }[] = [
   { value: "shell", label: "Shell", description: "Plain terminal session" }
 ]
 
-type FocusField = "title" | "tool" | "customCommand" | "path" | "worktree" | "branch"
+type FocusField = "title" | "tool" | "resumeSession" | "customCommand" | "path" | "worktree" | "branch"
 
 export function DialogNew() {
   const dialog = useDialog()
@@ -96,6 +96,9 @@ export function DialogNew() {
     }
   })
 
+  // Claude session mode state (new or resume)
+  const [claudeSessionMode, setClaudeSessionMode] = createSignal<ClaudeSessionMode>("new")
+
   // Worktree state
   const [useWorktree, setUseWorktree] = createSignal(false)
   const [worktreeBranch, setWorktreeBranch] = createSignal("")
@@ -115,6 +118,13 @@ export function DialogNew() {
   let customCommandInputRef: InputRenderable | undefined
   let pathInputRef: InputRenderable | undefined
   let branchInputRef: InputRenderable | undefined
+
+  // Reset Claude session mode when tool changes
+  createEffect(() => {
+    if (selectedTool() !== "claude") {
+      setClaudeSessionMode("new")
+    }
+  })
 
   // Check if current path is a git repo and if develop branch exists
   createEffect(async () => {
@@ -180,6 +190,10 @@ export function DialogNew() {
   // Get the list of focusable fields based on current state
   function getFocusableFields(): FocusField[] {
     const fields: FocusField[] = ["title", "tool"]
+    // Add resume checkbox when Claude is selected
+    if (selectedTool() === "claude") {
+      fields.push("resumeSession")
+    }
     if (selectedTool() === "custom") {
       fields.push("customCommand")
     }
@@ -258,6 +272,12 @@ export function DialogNew() {
       }
 
       setStatusMessage("Starting session...")
+
+      // Build Claude options if Claude is selected
+      const claudeOptions = selectedTool() === "claude" ? {
+        sessionMode: claudeSessionMode()
+      } : undefined
+
       const session = await sync.session.create({
         title: title() || undefined,
         tool: selectedTool(),
@@ -265,7 +285,8 @@ export function DialogNew() {
         projectPath: sessionProjectPath,
         worktreePath,
         worktreeRepo,
-        worktreeBranch: worktreeBranchName
+        worktreeBranch: worktreeBranchName,
+        claudeOptions
       })
 
       // Save to history for autocomplete suggestions
@@ -365,6 +386,13 @@ export function DialogNew() {
       setUseWorktree(!useWorktree())
       return
     }
+
+    // Space to toggle resume session checkbox
+    if (focusedField() === "resumeSession" && evt.name === "space") {
+      evt.preventDefault()
+      setClaudeSessionMode(claudeSessionMode() === "new" ? "resume" : "new")
+      return
+    }
   })
 
   return (
@@ -442,6 +470,27 @@ export function DialogNew() {
         </box>
 
       </box>
+
+      {/* Resume session checkbox (only when Claude is selected) */}
+      <Show when={selectedTool() === "claude"}>
+        <box paddingLeft={4} paddingRight={4} paddingTop={1}>
+          <box
+            flexDirection="row"
+            gap={1}
+            onMouseUp={() => {
+              setFocusedField("resumeSession")
+              setClaudeSessionMode(claudeSessionMode() === "new" ? "resume" : "new")
+            }}
+          >
+            <text fg={focusedField() === "resumeSession" ? theme.primary : theme.textMuted}>
+              {claudeSessionMode() === "resume" ? "[x]" : "[ ]"}
+            </text>
+            <text fg={focusedField() === "resumeSession" ? theme.text : theme.textMuted}>
+              Resume previous session
+            </text>
+          </box>
+        </box>
+      </Show>
 
       {/* Custom command input (only when custom tool is selected) */}
       <Show when={selectedTool() === "custom"}>
