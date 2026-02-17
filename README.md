@@ -28,7 +28,7 @@ When working with AI coding agents, you often need to run multiple agents on dif
 
 ## Demo
 
-![Demo](assets/demo.gif)
+![Demo](assets/demo.gif?v=2)
 
 ## Features
 
