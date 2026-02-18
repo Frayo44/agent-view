@@ -147,6 +147,10 @@ Create `~/.agent-view/config.json` to customize defaults:
 - [tmux](https://github.com/tmux/tmux) for session management
 - At least one AI coding tool installed (claude, gemini, opencode, etc.)
 
+## Acknowledgments
+
+This project is inspired by [agent-deck](https://github.com/asheshgoplani/agent-deck).
+
 ## License
 
 MIT
