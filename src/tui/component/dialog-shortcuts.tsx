@@ -9,8 +9,11 @@ import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
+import { DialogHeader } from "@tui/ui/dialog-header"
+import { DialogFooter } from "@tui/ui/dialog-footer"
 import { getShortcuts } from "@/core/config"
 import { executeShortcut, getShortcutGroupPath } from "@/core/shortcut"
+import { createListNavigation } from "@tui/util/navigation"
 import type { Shortcut } from "@/core/types"
 
 // Tool icons for display
@@ -55,14 +58,11 @@ export function DialogShortcuts() {
     }
   })
 
-  function move(delta: number) {
-    const len = shortcuts.length
-    if (len === 0) return
-    let next = selectedIndex() + delta
-    if (next < 0) next = len - 1
-    if (next >= len) next = 0
-    setSelectedIndex(next)
-  }
+  const move = createListNavigation(
+    () => shortcuts.length,
+    selectedIndex,
+    setSelectedIndex
+  )
 
   async function handleExecute(shortcut: Shortcut) {
     if (executing()) return
@@ -134,16 +134,7 @@ export function DialogShortcuts() {
   if (shortcuts.length === 0) {
     return (
       <box gap={1} paddingBottom={1}>
-        <box paddingLeft={4} paddingRight={4}>
-          <box flexDirection="row" justifyContent="space-between">
-            <text fg={theme.text} attributes={TextAttributes.BOLD}>
-              Shortcuts
-            </text>
-            <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
-              esc
-            </text>
-          </box>
-        </box>
+        <DialogHeader title="Shortcuts" />
 
         <box paddingLeft={4} paddingRight={4} paddingTop={1}>
           <text fg={theme.textMuted}>No shortcuts configured.</text>
@@ -176,17 +167,7 @@ export function DialogShortcuts() {
 
   return (
     <box gap={1} paddingBottom={1}>
-      {/* Header */}
-      <box paddingLeft={4} paddingRight={4}>
-        <box flexDirection="row" justifyContent="space-between">
-          <text fg={theme.text} attributes={TextAttributes.BOLD}>
-            Shortcuts
-          </text>
-          <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
-            esc
-          </text>
-        </box>
-      </box>
+      <DialogHeader title="Shortcuts" />
 
       {/* Shortcuts list */}
       <box paddingLeft={4} paddingRight={4} paddingTop={1}>
@@ -271,14 +252,11 @@ export function DialogShortcuts() {
         </text>
       </box>
 
-      {/* Footer */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={1}>
-        <text fg={theme.textMuted}>
-          {executing()
-            ? `${spinnerFrames[spinnerFrame()]} ${statusMessage()}`
-            : "\u2191\u2193 navigate | Enter execute | 1-9 quick select"}
-        </text>
-      </box>
+      <DialogFooter
+        hint={executing()
+          ? `${spinnerFrames[spinnerFrame()]} ${statusMessage()}`
+          : "\u2191\u2193 navigate | Enter execute | 1-9 quick select"}
+      />
     </box>
   )
 }

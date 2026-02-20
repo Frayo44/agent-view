@@ -3,12 +3,15 @@
  */
 
 import { createSignal } from "solid-js"
-import { TextAttributes, InputRenderable } from "@opentui/core"
+import { InputRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
+import { DialogHeader } from "@tui/ui/dialog-header"
+import { DialogFooter } from "@tui/ui/dialog-footer"
+import { ActionButton } from "@tui/ui/action-button"
 import type { Session } from "@/core/types"
 
 interface DialogRenameProps {
@@ -63,17 +66,7 @@ export function DialogRename(props: DialogRenameProps) {
 
   return (
     <box gap={1} paddingBottom={1}>
-      {/* Header */}
-      <box paddingLeft={4} paddingRight={4}>
-        <box flexDirection="row" justifyContent="space-between">
-          <text fg={theme.text} attributes={TextAttributes.BOLD}>
-            Rename Session
-          </text>
-          <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
-            esc
-          </text>
-        </box>
-      </box>
+      <DialogHeader title="Rename Session" />
 
       {/* Title field */}
       <box paddingLeft={4} paddingRight={4} paddingTop={1} gap={1}>
@@ -91,24 +84,14 @@ export function DialogRename(props: DialogRenameProps) {
         />
       </box>
 
-      {/* Rename button */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={2}>
-        <box
-          backgroundColor={saving() ? theme.backgroundElement : theme.primary}
-          padding={1}
-          onMouseUp={handleRename}
-          alignItems="center"
-        >
-          <text fg={theme.selectedListItemText} attributes={TextAttributes.BOLD}>
-            {saving() ? "Saving..." : "Rename"}
-          </text>
-        </box>
-      </box>
+      <ActionButton
+        label="Rename"
+        loadingLabel="Saving..."
+        loading={saving()}
+        onAction={handleRename}
+      />
 
-      {/* Footer */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={1}>
-        <text fg={theme.textMuted}>Enter: save | Esc: cancel</text>
-      </box>
+      <DialogFooter hint="Enter: save | Esc: cancel" />
     </box>
   )
 }

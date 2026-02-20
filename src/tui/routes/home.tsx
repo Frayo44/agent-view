@@ -26,6 +26,7 @@ import type { Session, Group } from "@/core/types"
 import { formatRelativeTime, formatSmartTime, truncatePath } from "@tui/util/locale"
 import { STATUS_ICONS } from "@tui/util/status"
 import { sortSessionsByCreatedAt } from "@tui/util/session"
+import { createListNavigation } from "@tui/util/navigation"
 import {
   flattenGroupTree,
   ensureDefaultGroup,
@@ -135,6 +136,12 @@ export function Home() {
     return item?.type === "group" ? item.group : undefined
   })
 
+  const move = createListNavigation(
+    () => groupedItems().length,
+    selectedIndex,
+    setSelectedIndex
+  )
+
   // Fetch preview with debounce; keep showing previous content while loading
   createEffect(() => {
     const session = selectedSession()
@@ -193,15 +200,6 @@ export function Home() {
       total: sync.session.list().length
     }
   })
-
-  function move(delta: number) {
-    const len = groupedItems().length
-    if (len === 0) return
-    let next = selectedIndex() + delta
-    if (next < 0) next = len - 1
-    if (next >= len) next = 0
-    setSelectedIndex(next)
-  }
 
   function jumpToGroup(groupIndex: number) {
     const items = groupedItems()

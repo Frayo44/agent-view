@@ -7,8 +7,11 @@ import { TextAttributes, InputRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
-import { useDialog } from "@tui/ui/dialog"
+import { useDialog, scrollDialogBy, scrollDialogTo } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
+import { DialogHeader } from "@tui/ui/dialog-header"
+import { DialogFooter } from "@tui/ui/dialog-footer"
+import { ActionButton } from "@tui/ui/action-button"
 import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, sanitizeBranchName } from "@/core/git"
 import { canFork } from "@/core/claude"
 import type { Session } from "@/core/types"
@@ -184,7 +187,19 @@ export function DialogFork(props: DialogForkProps) {
           ? (currentIdx - 1 + fields.length) % fields.length
           : (currentIdx + 1) % fields.length
         const nextField = fields[nextIdx]
-        if (nextField) setFocusedField(nextField)
+        if (nextField) {
+          setFocusedField(nextField)
+          // Auto-scroll: detect wrap-around
+          const wrappedToStart = !evt.shift && nextIdx === 0 && currentIdx === fields.length - 1
+          const wrappedToEnd = evt.shift && nextIdx === fields.length - 1 && currentIdx === 0
+          if (wrappedToStart) {
+            scrollDialogTo(0) // Scroll to top
+          } else if (wrappedToEnd) {
+            scrollDialogTo(9999) // Scroll to bottom
+          } else {
+            scrollDialogBy(evt.shift ? -3 : 3)
+          }
+        }
       }
       return
     }
@@ -199,17 +214,7 @@ export function DialogFork(props: DialogForkProps) {
 
   return (
     <box gap={1} paddingBottom={1}>
-      {/* Header */}
-      <box paddingLeft={4} paddingRight={4}>
-        <box flexDirection="row" justifyContent="space-between">
-          <text fg={theme.text} attributes={TextAttributes.BOLD}>
-            Fork Session
-          </text>
-          <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
-            esc
-          </text>
-        </box>
-      </box>
+      <DialogHeader title="Fork Session" />
 
       {/* Source session info */}
       <box paddingLeft={4} paddingRight={4} paddingTop={1}>
@@ -303,26 +308,15 @@ export function DialogFork(props: DialogForkProps) {
         </box>
       </Show>
 
-      {/* Fork button */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={2}>
-        <box
-          backgroundColor={forking() || checkingForkEligibility() || !canForkSession() ? theme.backgroundElement : theme.primary}
-          padding={1}
-          onMouseUp={canForkSession() ? handleFork : undefined}
-          alignItems="center"
-        >
-          <text fg={canForkSession() ? theme.selectedListItemText : theme.textMuted} attributes={TextAttributes.BOLD}>
-            {checkingForkEligibility() ? "Checking..." : forking() ? "Forking..." : !canForkSession() ? "Cannot Fork" : "Fork Session"}
-          </text>
-        </box>
-      </box>
+      <ActionButton
+        label={!canForkSession() ? "Cannot Fork" : "Fork Session"}
+        loadingLabel={checkingForkEligibility() ? "Checking..." : "Forking..."}
+        loading={forking() || checkingForkEligibility()}
+        disabled={!canForkSession()}
+        onAction={handleFork}
+      />
 
-      {/* Footer */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={1}>
-        <text fg={theme.textMuted}>
-          Tab: next field | Space: toggle | Enter: fork
-        </text>
-      </box>
+      <DialogFooter hint="Tab: next field | Space: toggle | Enter: fork" />
     </box>
   )
 }

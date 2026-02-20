@@ -3,12 +3,15 @@
  */
 
 import { createSignal } from "solid-js"
-import { TextAttributes, InputRenderable } from "@opentui/core"
+import { InputRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
+import { DialogHeader } from "@tui/ui/dialog-header"
+import { DialogFooter } from "@tui/ui/dialog-footer"
+import { ActionButton } from "@tui/ui/action-button"
 import type { Group } from "@/core/types"
 
 interface DialogGroupProps {
@@ -82,22 +85,12 @@ export function DialogGroup(props: DialogGroupProps) {
     }
   })
 
-  const title = props.mode === "create" ? "Create Group" : "Rename Group"
+  const dialogTitle = props.mode === "create" ? "Create Group" : "Rename Group"
   const buttonText = props.mode === "create" ? "Create" : "Rename"
 
   return (
     <box gap={1} paddingBottom={1}>
-      {/* Header */}
-      <box paddingLeft={4} paddingRight={4}>
-        <box flexDirection="row" justifyContent="space-between">
-          <text fg={theme.text} attributes={TextAttributes.BOLD}>
-            {title}
-          </text>
-          <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
-            esc
-          </text>
-        </box>
-      </box>
+      <DialogHeader title={dialogTitle} />
 
       {/* Name field */}
       <box paddingLeft={4} paddingRight={4} paddingTop={1} gap={1}>
@@ -115,24 +108,14 @@ export function DialogGroup(props: DialogGroupProps) {
         />
       </box>
 
-      {/* Submit button */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={2}>
-        <box
-          backgroundColor={saving() ? theme.backgroundElement : theme.primary}
-          padding={1}
-          onMouseUp={handleSubmit}
-          alignItems="center"
-        >
-          <text fg={theme.selectedListItemText} attributes={TextAttributes.BOLD}>
-            {saving() ? "Saving..." : buttonText}
-          </text>
-        </box>
-      </box>
+      <ActionButton
+        label={buttonText}
+        loadingLabel="Saving..."
+        loading={saving()}
+        onAction={handleSubmit}
+      />
 
-      {/* Footer */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={1}>
-        <text fg={theme.textMuted}>Enter: save | Esc: cancel</text>
-      </box>
+      <DialogFooter hint="Enter: save | Esc: cancel" />
     </box>
   )
 }

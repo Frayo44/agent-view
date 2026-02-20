@@ -1,32 +1,60 @@
 /**
- * Dialog system
- * Based on OpenCode's dialog
+ * Dialog system with adaptive scrolling for small terminals
  */
 
-import { createContext, useContext, type ParentProps, type JSX, Show, batch, createEffect } from "solid-js"
+import { createContext, useContext, type ParentProps, type JSX, batch, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
-import { RGBA, Renderable } from "@opentui/core"
+import { RGBA, Renderable, ScrollBoxRenderable } from "@opentui/core"
 import { useTheme } from "@tui/context/theme"
-import fs from "fs"
-import path from "path"
-import os from "os"
 
-const logFile = path.join(os.homedir(), ".agent-orchestrator", "debug.log")
-function log(...args: unknown[]) {
-  const msg = `[${new Date().toISOString()}] [DIALOG] ${args.map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ")}\n`
-  try { fs.appendFileSync(logFile, msg) } catch {}
+// Shared signal for dialog scroll ref (allows DialogProvider to control scrolling)
+const [dialogScrollRef, setDialogScrollRef] = createSignal<ScrollBoxRenderable | undefined>(undefined)
+
+/**
+ * Scroll the dialog content by a delta amount
+ */
+export function scrollDialogBy(delta: number) {
+  const ref = dialogScrollRef()
+  if (ref) {
+    ref.scrollBy(delta)
+  }
 }
 
+/**
+ * Scroll the dialog content to an absolute position
+ */
+export function scrollDialogTo(position: number) {
+  const ref = dialogScrollRef()
+  if (ref) {
+    ref.scrollTo(position)
+  }
+}
+
+// Threshold for enabling scroll mode (terminal height in rows)
+const SCROLL_MODE_THRESHOLD = 30
+
 export function Dialog(props: ParentProps<{ onClose: () => void; size?: "medium" | "large" }>) {
-  log("Dialog component rendering")
   const dimensions = useTerminalDimensions()
   const { theme } = useTheme()
   const renderer = useRenderer()
 
-  log("Dialog dimensions:", dimensions().width, "x", dimensions().height)
-
   let dismiss = false
+
+  // Calculate dialog dimensions based on terminal size
+  const termWidth = dimensions().width
+  const termHeight = dimensions().height
+
+  // Dialog width: target width capped by terminal width
+  const targetWidth = props.size === "large" ? 80 : 60
+  const dialogWidth = Math.min(targetWidth, termWidth - 4)
+
+  // Dialog height for scroll mode: leave small margin
+  const verticalMargin = Math.max(1, Math.floor(termHeight * 0.05))
+  const scrollHeight = Math.max(5, termHeight - (verticalMargin * 2))
+
+  // Use scroll mode for small terminals
+  const useScrollMode = termHeight < SCROLL_MODE_THRESHOLD
 
   return (
     <box
@@ -40,11 +68,11 @@ export function Dialog(props: ParentProps<{ onClose: () => void; size?: "medium"
         }
         props.onClose?.()
       }}
-      width={dimensions().width}
-      height={dimensions().height}
+      width={termWidth}
+      height={termHeight}
       alignItems="center"
+      justifyContent="center"
       position="absolute"
-      paddingTop={Math.floor(dimensions().height / 4)}
       left={0}
       top={0}
       backgroundColor={RGBA.fromInts(0, 0, 0, 150)}
@@ -54,12 +82,21 @@ export function Dialog(props: ParentProps<{ onClose: () => void; size?: "medium"
           dismiss = false
           e.stopPropagation()
         }}
-        width={props.size === "large" ? 80 : 60}
-        maxWidth={dimensions().width - 2}
+        width={dialogWidth}
         backgroundColor={theme.backgroundPanel}
         paddingTop={1}
       >
-        {props.children}
+        {useScrollMode ? (
+          <scrollbox
+            ref={(r: ScrollBoxRenderable) => { setDialogScrollRef(r) }}
+            height={scrollHeight}
+            scrollbarOptions={{ visible: false }}
+          >
+            {props.children}
+          </scrollbox>
+        ) : (
+          props.children
+        )}
       </box>
     </box>
   )
@@ -105,6 +142,22 @@ export function DialogProvider(props: ParentProps) {
 
   useKeyboard((evt) => {
     if (state.stack.length === 0) return
+
+    // Handle dialog scrolling with [ and ]
+    const scrollRef = dialogScrollRef()
+    if (scrollRef) {
+      if (evt.name === "[") {
+        scrollRef.scrollBy(-3)
+        evt.preventDefault()
+        return
+      }
+      if (evt.name === "]") {
+        scrollRef.scrollBy(3)
+        evt.preventDefault()
+        return
+      }
+    }
+
     if (evt.defaultPrevented) return
     if (evt.name === "escape" || (evt.ctrl && evt.name === "c")) {
       if (renderer.getSelection()) return
@@ -129,7 +182,6 @@ export function DialogProvider(props: ParentProps) {
       refocus()
     },
     replace(element: () => JSX.Element, onClose?: () => void) {
-      log("Dialog.replace called, current stack length:", state.stack.length)
       if (state.stack.length === 0) {
         focus = renderer.currentFocusedRenderable
         focus?.blur()
@@ -138,16 +190,13 @@ export function DialogProvider(props: ParentProps) {
         item.onClose?.()
       }
       setState("size", "medium")
-      // Store the factory function, don't call it - let it render in the tree
       setState("stack", [{ element, onClose }])
-      log("Dialog.replace done, new stack length:", state.stack.length)
     },
     push(element: () => JSX.Element, onClose?: () => void) {
       if (state.stack.length === 0) {
         focus = renderer.currentFocusedRenderable
         focus?.blur()
       }
-      // Store the factory function, don't call it
       setState("stack", [...state.stack, { element, onClose }])
     },
     pop() {
@@ -169,25 +218,13 @@ export function DialogProvider(props: ParentProps) {
     }
   }
 
-  // Debug: log stack changes only when it actually changes
-  let lastStackLength = -1
-  createEffect(() => {
-    if (state.stack.length !== lastStackLength) {
-      lastStackLength = state.stack.length
-      log("Dialog stack changed to:", state.stack.length)
-    }
-  })
-
   return (
     <ctx.Provider value={value}>
       {props.children}
       {state.stack.length > 0 && (
-        <>
-          {log("Rendering Dialog overlay")}
-          <Dialog onClose={() => value.clear()} size={state.size}>
-            {state.stack.at(-1)!.element()}
-          </Dialog>
-        </>
+        <Dialog onClose={() => value.clear()} size={state.size}>
+          {state.stack.at(-1)!.element()}
+        </Dialog>
       )}
     </ctx.Provider>
   )

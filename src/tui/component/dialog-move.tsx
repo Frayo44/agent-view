@@ -9,7 +9,10 @@ import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
+import { DialogHeader } from "@tui/ui/dialog-header"
+import { DialogFooter } from "@tui/ui/dialog-footer"
 import { ensureDefaultGroup, DEFAULT_GROUP_PATH } from "@tui/util/groups"
+import { createListNavigation } from "@tui/util/navigation"
 import type { Session } from "@/core/types"
 
 interface DialogMoveProps {
@@ -35,14 +38,11 @@ export function DialogMove(props: DialogMoveProps) {
     Math.max(0, groups().findIndex(g => g.path === currentGroupPath))
   )
 
-  function move(delta: number) {
-    const len = groups().length
-    if (len === 0) return
-    let next = selectedIndex() + delta
-    if (next < 0) next = len - 1
-    if (next >= len) next = 0
-    setSelectedIndex(next)
-  }
+  const move = createListNavigation(
+    () => groups().length,
+    selectedIndex,
+    setSelectedIndex
+  )
 
   function handleSelect() {
     const group = groups()[selectedIndex()]
@@ -81,17 +81,7 @@ export function DialogMove(props: DialogMoveProps) {
 
   return (
     <box gap={1} paddingBottom={1}>
-      {/* Header */}
-      <box paddingLeft={4} paddingRight={4}>
-        <box flexDirection="row" justifyContent="space-between">
-          <text fg={theme.text} attributes={TextAttributes.BOLD}>
-            Move Session
-          </text>
-          <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
-            esc
-          </text>
-        </box>
-      </box>
+      <DialogHeader title="Move Session" />
 
       {/* Session info */}
       <box paddingLeft={4} paddingRight={4} paddingTop={1}>
@@ -146,10 +136,7 @@ export function DialogMove(props: DialogMoveProps) {
         </For>
       </box>
 
-      {/* Footer */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={2}>
-        <text fg={theme.textMuted}>j/k: navigate | Enter: select | Esc: cancel</text>
-      </box>
+      <DialogFooter hint="j/k: navigate | Enter: select | Esc: cancel" />
     </box>
   )
 }

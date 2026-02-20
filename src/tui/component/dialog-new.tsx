@@ -9,9 +9,12 @@ import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { useRoute } from "@tui/context/route"
 import { useConfig } from "@tui/context/config"
-import { useDialog } from "@tui/ui/dialog"
+import { useDialog, scrollDialogBy, scrollDialogTo } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
 import { InputAutocomplete } from "@tui/ui/input-autocomplete"
+import { DialogHeader } from "@tui/ui/dialog-header"
+import { DialogFooter } from "@tui/ui/dialog-footer"
+import { ActionButton } from "@tui/ui/action-button"
 import { attachSessionSync } from "@/core/tmux"
 import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists } from "@/core/git"
 import { HistoryManager } from "@/core/history"
@@ -318,7 +321,19 @@ export function DialogNew() {
           ? (currentIdx - 1 + fields.length) % fields.length
           : (currentIdx + 1) % fields.length
         const nextField = fields[nextIdx]
-        if (nextField) setFocusedField(nextField)
+        if (nextField) {
+          setFocusedField(nextField)
+          // Auto-scroll: detect wrap-around
+          const wrappedToStart = !evt.shift && nextIdx === 0 && currentIdx === fields.length - 1
+          const wrappedToEnd = evt.shift && nextIdx === fields.length - 1 && currentIdx === 0
+          if (wrappedToStart) {
+            scrollDialogTo(0) // Scroll to top
+          } else if (wrappedToEnd) {
+            scrollDialogTo(9999) // Scroll to bottom
+          } else {
+            scrollDialogBy(evt.shift ? -3 : 3)
+          }
+        }
       }
       return
     }
@@ -369,17 +384,7 @@ export function DialogNew() {
 
   return (
     <box gap={1} paddingBottom={1}>
-      {/* Header */}
-      <box paddingLeft={4} paddingRight={4}>
-        <box flexDirection="row" justifyContent="space-between">
-          <text fg={theme.text} attributes={TextAttributes.BOLD}>
-            New Session
-          </text>
-          <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
-            esc
-          </text>
-        </box>
-      </box>
+      <DialogHeader title="New Session" />
 
       {/* Title field */}
       <box paddingLeft={4} paddingRight={4} gap={1}>
@@ -411,12 +416,13 @@ export function DialogNew() {
         <text fg={focusedField() === "tool" ? theme.primary : theme.textMuted}>
           Tool
         </text>
-        <box gap={0}>
+        <box gap={0} flexDirection="column">
           <For each={TOOLS}>
             {(tool, idx) => (
               <box
                 flexDirection="row"
                 gap={1}
+                height={1}
                 onMouseUp={() => {
                   setSelectedTool(tool.value)
                   setToolIndex(idx())
@@ -597,26 +603,14 @@ export function DialogNew() {
         </box>
       </Show>
 
-      {/* Create button */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={2}>
-        <box
-          backgroundColor={creating() ? theme.backgroundElement : theme.primary}
-          padding={1}
-          onMouseUp={handleCreate}
-          alignItems="center"
-        >
-          <text fg={theme.selectedListItemText} attributes={TextAttributes.BOLD}>
-            {creating() ? `${spinnerFrames[spinnerFrame()]} ${statusMessage()}` : "Create Session"}
-          </text>
-        </box>
-      </box>
+      <ActionButton
+        label="Create Session"
+        loadingLabel={`${spinnerFrames[spinnerFrame()]} ${statusMessage()}`}
+        loading={creating()}
+        onAction={handleCreate}
+      />
 
-      {/* Footer with keybind hints */}
-      <box paddingLeft={4} paddingRight={4} paddingTop={1}>
-        <text fg={theme.textMuted}>
-          {creating() ? statusMessage() : "Tab | Enter: create"}
-        </text>
-      </box>
+      <DialogFooter hint={creating() ? statusMessage() : "Tab | Enter: create"} />
     </box>
   )
 }
