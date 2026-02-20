@@ -103,6 +103,16 @@ export interface WorktreeConfig {
   autoCleanup?: boolean
 }
 
+export interface Shortcut {
+  name: string                    // Display name (also serves as identifier)
+  tool: Tool                      // claude, opencode, gemini, codex, custom, shell
+  projectPath: string             // Working directory
+  groupPath: string               // Target group (created if missing)
+  description?: string            // Optional help text
+  command?: string                // Custom command (when tool === "custom")
+  keybind?: string                // e.g., "1", "2", "<leader>w", "ctrl+shift+1"
+}
+
 export interface Config {
   theme?: string
   defaultTool?: Tool
@@ -110,6 +120,7 @@ export interface Config {
   worktree?: WorktreeConfig
   mcpServers?: MCPServer[]
   keybinds?: Record<string, string>
+  shortcuts?: Shortcut[]
 }
 
 export function getToolCommand(tool: Tool, customCmd?: string): string {

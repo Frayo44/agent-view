@@ -30,7 +30,8 @@ const DEFAULT_KEYBINDS: KeybindConfig = {
   detach: ["q", "escape"],
   delete: ["d", "ctrl+d"],
   restart: ["r", "ctrl+r"],
-  fork: ["f", "ctrl+f"]
+  fork: ["f", "ctrl+f"],
+  open_shortcuts: ["s", "<leader>s"]
 }
 
 export function parseKeybind(str: string): KeybindInfo {
@@ -172,6 +173,20 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
       },
       setConfig(config: KeybindConfig) {
         setStore("config", { ...DEFAULT_KEYBINDS, ...config })
+      },
+      /**
+       * Match a dynamic keybind string against a key event
+       * Used for shortcut keybinds defined in config
+       */
+      matchDynamic(keybind: string, evt: ParsedKey): boolean {
+        const info = parseKeybind(keybind)
+        return matchKeybind(info, evt, store.leader)
+      },
+      /**
+       * Format a keybind string for display (replace <leader> with actual key)
+       */
+      printDynamic(keybind: string): string {
+        return keybind.replace("<leader>", store.config.leader as string ?? "")
       }
     }
   }

@@ -6,7 +6,7 @@
 import * as path from "path"
 import * as os from "os"
 import * as fs from "fs/promises"
-import type { Tool } from "./types"
+import type { Tool, Shortcut } from "./types"
 
 export interface WorktreeConfig {
   defaultBaseBranch?: string
@@ -18,6 +18,7 @@ export interface AppConfig {
   theme?: string
   worktree?: WorktreeConfig
   defaultGroup?: string
+  shortcuts?: Shortcut[]
 }
 
 const CONFIG_DIR = path.join(os.homedir(), ".agent-view")
@@ -30,7 +31,8 @@ const DEFAULT_CONFIG: AppConfig = {
     defaultBaseBranch: "main",
     autoCleanup: true
   },
-  defaultGroup: "default"
+  defaultGroup: "default",
+  shortcuts: []
 }
 
 // Cached config for sync access
@@ -62,7 +64,9 @@ export async function loadConfig(): Promise<AppConfig> {
       worktree: {
         ...DEFAULT_CONFIG.worktree,
         ...parsed.worktree
-      }
+      },
+      // Shortcuts array is taken from config directly (no merge with defaults)
+      shortcuts: parsed.shortcuts || []
     }
 
     return cachedConfig
@@ -78,6 +82,13 @@ export async function loadConfig(): Promise<AppConfig> {
     cachedConfig = { ...DEFAULT_CONFIG }
     return cachedConfig
   }
+}
+
+/**
+ * Get shortcuts from the cached config
+ */
+export function getShortcuts(): Shortcut[] {
+  return cachedConfig.shortcuts || []
 }
 
 /**

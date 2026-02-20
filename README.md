@@ -104,6 +104,7 @@ av
 | `R` | Rename session or group |
 | `f` | Fork session |
 | `F` | Fork session with worktree |
+| `s` | Open shortcuts dialog |
 | `g` | Create new group |
 | `m` | Move session to group |
 | `1-9` | Jump to group by number |
@@ -137,9 +138,36 @@ Create `~/.agent-view/config.json` to customize defaults:
   "worktree": {
     "defaultBaseBranch": "main",
     "command": "git worktree"
-  }
+  },
+  "shortcuts": [
+    {
+      "name": "Backend API",
+      "tool": "claude",
+      "projectPath": "/home/dev/projects/backend-api",
+      "groupPath": "work",
+      "keybind": "<leader>1"
+    },
+    {
+      "name": "Frontend App",
+      "tool": "gemini",
+      "projectPath": "/home/dev/projects/frontend-app",
+      "groupPath": "work",
+      "keybind": "<leader>2"
+    }
+  ]
 }
 ```
+
+**Shortcuts** allow quick session creation from pre-configured templates. Press `s` to open the shortcuts dialog, or use direct keybinds (e.g., `\1` for `<leader>1`).
+
+| Shortcut Field | Required | Description |
+|----------------|----------|-------------|
+| `name` | Yes | Display name and session title |
+| `tool` | Yes | `claude`, `gemini`, `opencode`, `codex`, `custom`, `shell` |
+| `projectPath` | Yes | Working directory for the session |
+| `groupPath` | Yes | Target group (created automatically if missing) |
+| `keybind` | No | Direct keybind, e.g. `"<leader>1"`, `"ctrl+1"` |
+| `command` | No | Custom command (required when `tool` is `custom`) |
 
 ## Requirements
 

@@ -15,6 +15,10 @@ import { DialogFork } from "@tui/component/dialog-fork"
 import { DialogRename } from "@tui/component/dialog-rename"
 import { DialogGroup } from "@tui/component/dialog-group"
 import { DialogMove } from "@tui/component/dialog-move"
+import { DialogShortcuts } from "@tui/component/dialog-shortcuts"
+import { getShortcuts } from "@/core/config"
+import { executeShortcut, getShortcutGroupPath } from "@/core/shortcut"
+import { useKeybind } from "@tui/context/keybind"
 import { attachSessionSync, capturePane, wasCommandPaletteRequested } from "@/core/tmux"
 import { canFork } from "@/core/claude"
 import { useCommandDialog } from "@tui/component/dialog-command"
@@ -73,6 +77,10 @@ export function Home() {
   const toast = useToast()
   const renderer = useRenderer()
   const command = useCommandDialog()
+  const keybind = useKeybind()
+
+  // Get shortcuts from config for direct keybind handling
+  const shortcuts = createMemo(() => getShortcuts())
 
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [previewContent, setPreviewContent] = createSignal<string>("")
@@ -278,6 +286,23 @@ export function Home() {
     }
   }
 
+  // Handle executing a shortcut directly
+  async function handleShortcut(shortcut: ReturnType<typeof getShortcuts>[0]) {
+    try {
+      const session = await executeShortcut({ shortcut })
+      const groupPath = getShortcutGroupPath(shortcut)
+      toast.show({
+        message: `Created '${shortcut.name}' in ${groupPath} group`,
+        variant: "success",
+        duration: 2000
+      })
+
+      sync.refresh()
+    } catch (err) {
+      toast.error(err as Error)
+    }
+  }
+
   async function handleFork(session: Session) {
     log("handleFork called for session:", session.id, "tool:", session.tool, "projectPath:", session.projectPath)
 
@@ -442,6 +467,21 @@ export function Home() {
           return
         }
         dialog.push(() => <DialogFork session={session} />)
+      }
+    }
+
+    // s to open shortcuts dialog
+    if (evt.name === "s" && !evt.shift && !evt.ctrl) {
+      dialog.push(() => <DialogShortcuts />)
+      return
+    }
+
+    // Check for direct shortcut keybinds
+    const currentShortcuts = shortcuts()
+    for (const shortcut of currentShortcuts) {
+      if (shortcut.keybind && keybind.matchDynamic(shortcut.keybind, evt)) {
+        handleShortcut(shortcut)
+        return
       }
     }
   })
@@ -849,6 +889,10 @@ export function Home() {
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>f</text>
           <text fg={theme.textMuted}>fork</text>
+        </box>
+        <box flexDirection="column" alignItems="center">
+          <text fg={theme.text}>s</text>
+          <text fg={theme.textMuted}>shortcuts</text>
         </box>
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>1-9</text>
