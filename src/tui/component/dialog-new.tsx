@@ -58,7 +58,7 @@ const TOOLS: { value: Tool; label: string; description: string }[] = [
   { value: "shell", label: "Shell", description: "Plain terminal session" }
 ]
 
-type FocusField = "title" | "tool" | "resumeSession" | "customCommand" | "path" | "worktree" | "branch"
+type FocusField = "title" | "tool" | "resumeSession" | "skipPermissions" | "customCommand" | "path" | "worktree" | "branch"
 
 export function DialogNew() {
   const dialog = useDialog()
@@ -98,6 +98,7 @@ export function DialogNew() {
 
   // Claude session mode state (new or resume)
   const [claudeSessionMode, setClaudeSessionMode] = createSignal<ClaudeSessionMode>("new")
+  const [skipPermissions, setSkipPermissions] = createSignal(false)
 
   // Worktree state
   const [useWorktree, setUseWorktree] = createSignal(false)
@@ -190,9 +191,10 @@ export function DialogNew() {
   // Get the list of focusable fields based on current state
   function getFocusableFields(): FocusField[] {
     const fields: FocusField[] = ["title", "tool"]
-    // Add resume checkbox when Claude is selected
+    // Add checkboxes when Claude is selected
     if (selectedTool() === "claude") {
       fields.push("resumeSession")
+      fields.push("skipPermissions")
     }
     if (selectedTool() === "custom") {
       fields.push("customCommand")
@@ -275,7 +277,8 @@ export function DialogNew() {
 
       // Build Claude options if Claude is selected
       const claudeOptions = selectedTool() === "claude" ? {
-        sessionMode: claudeSessionMode()
+        sessionMode: claudeSessionMode(),
+        skipPermissions: skipPermissions()
       } : undefined
 
       const session = await sync.session.create({
@@ -393,6 +396,13 @@ export function DialogNew() {
       setClaudeSessionMode(claudeSessionMode() === "new" ? "resume" : "new")
       return
     }
+
+    // Space to toggle skip permissions checkbox
+    if (focusedField() === "skipPermissions" && evt.name === "space") {
+      evt.preventDefault()
+      setSkipPermissions(!skipPermissions())
+      return
+    }
   })
 
   return (
@@ -471,9 +481,9 @@ export function DialogNew() {
 
       </box>
 
-      {/* Resume session checkbox (only when Claude is selected) */}
+      {/* Claude options checkboxes (only when Claude is selected) */}
       <Show when={selectedTool() === "claude"}>
-        <box paddingLeft={4} paddingRight={4} paddingTop={1}>
+        <box paddingLeft={4} paddingRight={4} paddingTop={1} flexDirection="row" gap={3}>
           <box
             flexDirection="row"
             gap={1}
@@ -486,7 +496,22 @@ export function DialogNew() {
               {claudeSessionMode() === "resume" ? "[x]" : "[ ]"}
             </text>
             <text fg={focusedField() === "resumeSession" ? theme.text : theme.textMuted}>
-              Resume previous session
+              Resume
+            </text>
+          </box>
+          <box
+            flexDirection="row"
+            gap={1}
+            onMouseUp={() => {
+              setFocusedField("skipPermissions")
+              setSkipPermissions(!skipPermissions())
+            }}
+          >
+            <text fg={focusedField() === "skipPermissions" ? theme.primary : theme.textMuted}>
+              {skipPermissions() ? "[x]" : "[ ]"}
+            </text>
+            <text fg={focusedField() === "skipPermissions" ? theme.text : theme.textMuted}>
+              Skip Permissions
             </text>
           </box>
         </box>

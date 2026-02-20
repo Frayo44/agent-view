@@ -72,6 +72,7 @@ export type ClaudeSessionMode = "new" | "resume"
 
 export interface ClaudeOptions {
   sessionMode: ClaudeSessionMode
+  skipPermissions?: boolean
 }
 
 export interface SessionCreateOptions {

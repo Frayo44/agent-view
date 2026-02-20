@@ -175,17 +175,20 @@ import type { ClaudeOptions } from "./types"
  * Build the Claude command based on options
  * - "new" mode: returns plain "claude"
  * - "resume" mode: returns "claude --resume" (Claude will prompt for session selection)
+ * - skipPermissions: adds "--dangerously-skip-permissions" flag
  */
 export function buildClaudeCommand(options?: ClaudeOptions): string {
-  if (!options || options.sessionMode === "new") {
-    return "claude"
+  const parts: string[] = ["claude"]
+
+  if (options?.sessionMode === "resume") {
+    parts.push("--resume")
   }
 
-  if (options.sessionMode === "resume") {
-    return "claude --resume"
+  if (options?.skipPermissions) {
+    parts.push("--dangerously-skip-permissions")
   }
 
-  return "claude"
+  return parts.join(" ")
 }
 
 /**
