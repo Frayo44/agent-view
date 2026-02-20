@@ -32,9 +32,6 @@ let sessionCache: SessionCache = {
 
 const CACHE_TTL = 2000 // 2 seconds
 
-/**
- * Check if tmux is available
- */
 export async function isTmuxAvailable(): Promise<boolean> {
   try {
     await execAsync("tmux -V")
@@ -123,9 +120,6 @@ export function isSessionActive(name: string, thresholdSeconds = 2): boolean {
   return now - activity < thresholdSeconds
 }
 
-/**
- * Create a new tmux session
- */
 export async function createSession(options: {
   name: string
   command?: string
@@ -134,18 +128,15 @@ export async function createSession(options: {
 }): Promise<void> {
   const cwd = options.cwd || process.env.HOME || "/tmp"
 
-  // Step 1: Create the tmux session first (detached, no command)
   const createCmd = `tmux new-session -d -s "${options.name}" -c "${cwd}"`
   await execAsync(createCmd)
   registerSessionInCache(options.name)
 
-  // Step 2: Set environment variables in the tmux session
   const envVars = options.env || {}
   for (const [key, value] of Object.entries(envVars)) {
     await execAsync(`tmux set-environment -t "${options.name}" ${key} "${value}"`)
   }
 
-  // Step 3: Send the command via send-keys (like agent-deck does)
   if (options.command) {
     let cmdToSend = options.command
 
@@ -158,15 +149,11 @@ export async function createSession(options: {
       cmdToSend = `bash -c '${escapedCmd}'`
     }
 
-    // Send the command and press Enter
     await sendKeys(options.name, cmdToSend)
     await execAsync(`tmux send-keys -t "${options.name}" Enter`)
   }
 }
 
-/**
- * Kill a tmux session
- */
 export async function killSession(name: string): Promise<void> {
   try {
     await execAsync(`tmux kill-session -t "${name}"`)
@@ -176,9 +163,6 @@ export async function killSession(name: string): Promise<void> {
   }
 }
 
-/**
- * Send keys to a tmux session
- */
 export async function sendKeys(name: string, keys: string): Promise<void> {
   // Escape special characters for tmux
   const escaped = keys
@@ -196,9 +180,6 @@ export async function sendRawKeys(name: string, keys: string): Promise<void> {
   await execAsync(`tmux send-keys -t "${name}" "${keys}"`)
 }
 
-/**
- * Capture pane content
- */
 export async function capturePane(
   name: string,
   options: {
@@ -236,9 +217,6 @@ export async function capturePane(
   }
 }
 
-/**
- * Get pane dimensions
- */
 export async function getPaneDimensions(name: string): Promise<{ width: number; height: number }> {
   const { stdout } = await execAsync(
     `tmux display-message -t "${name}" -p "#{pane_width}\t#{pane_height}"`
@@ -247,9 +225,6 @@ export async function getPaneDimensions(name: string): Promise<{ width: number; 
   return { width: width || 80, height: height || 24 }
 }
 
-/**
- * Resize pane
- */
 export async function resizePane(name: string, width: number, height: number): Promise<void> {
   await execAsync(`tmux resize-pane -t "${name}" -x ${width} -y ${height}`)
 }
@@ -283,16 +258,10 @@ export async function listSessions(): Promise<string[]> {
   }
 }
 
-/**
- * Check if currently inside tmux
- */
 export function insideTmux(): boolean {
   return !!process.env.TMUX
 }
 
-/**
- * Get the current tmux session name
- */
 export async function getCurrentSession(): Promise<string | null> {
   if (!insideTmux()) return null
 
@@ -304,9 +273,6 @@ export async function getCurrentSession(): Promise<string | null> {
   }
 }
 
-/**
- * Generate a unique session name
- */
 export function generateSessionName(title: string): string {
   const safe = title
     .toLowerCase()
@@ -328,9 +294,6 @@ export interface ToolStatus {
   hasError: boolean
 }
 
-/**
- * Strip ANSI escape codes from terminal output
- */
 export function stripAnsi(text: string): string {
   // Remove ANSI escape sequences (colors, cursor movement, etc.)
   return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
@@ -459,7 +422,6 @@ export function parseToolStatus(output: string, tool?: string): ToolStatus {
 export async function attachWithPty(sessionName: string): Promise<void> {
   const ptyModule = await getPty()
   return new Promise((resolve) => {
-    // Spawn tmux attach with PTY
     const ptyProcess = ptyModule.spawn("tmux", ["attach-session", "-t", sessionName], {
       name: "xterm-256color",
       cols: process.stdout.columns || 80,
@@ -489,14 +451,12 @@ export async function attachWithPty(sessionName: string): Promise<void> {
     }
     process.stdout.on("resize", handleResize)
 
-    // Put stdin in raw mode to capture Ctrl+Q
     const wasRaw = process.stdin.isRaw
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(true)
     }
     process.stdin.resume()
 
-    // Intercept Ctrl+Q (ASCII 17) for detach
     const handleStdin = (data: Buffer) => {
       if (data.length === 1 && data[0] === 17) {
         isDetaching = true
@@ -555,7 +515,6 @@ export function attachSessionSync(sessionName: string): void {
   const { spawnSync } = require("child_process")
   const fs = require("fs")
 
-  // Clear any existing signal
   try {
     fs.unlinkSync(COMMAND_PALETTE_SIGNAL)
   } catch {
@@ -581,9 +540,7 @@ export function attachSessionSync(sessionName: string): void {
 
   // Exit alternate screen buffer (TUI uses this)
   process.stdout.write("\x1b[?1049l")
-  // Clear screen
   process.stdout.write("\x1b[2J\x1b[H")
-  // Show cursor
   process.stdout.write("\x1b[?25h")
 
   // Attach to tmux - this blocks until user detaches (Ctrl+Q or Ctrl+B d)

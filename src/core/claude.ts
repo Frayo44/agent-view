@@ -10,9 +10,6 @@ import { readdirSync, statSync, readFileSync, existsSync } from "fs"
 // UUID regex pattern (v4 format)
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/**
- * Get the Claude config directory
- */
 export function getClaudeConfigDir(): string {
   return path.join(homedir(), ".claude")
 }
@@ -32,8 +29,6 @@ export function convertToClaudeDirName(projectPath: string): string {
  */
 function isUuidSessionFile(filename: string): boolean {
   if (!filename.endsWith(".jsonl")) return false
-
-  // Exclude agent-*.jsonl files
   if (filename.startsWith("agent-")) return false
 
   const baseName = filename.replace(".jsonl", "")
@@ -49,13 +44,11 @@ export function getClaudeSessionID(projectPath: string): string | null {
   const projectDirName = convertToClaudeDirName(projectPath)
   const projectConfigDir = path.join(configDir, "projects", projectDirName)
 
-  // Try to find active session from project directory
   const sessionId = findActiveSessionID(projectConfigDir)
   if (sessionId) {
     return sessionId
   }
 
-  // Fall back to lastSessionId from .claude.json
   return getLastSessionIdFromConfig(projectPath)
 }
 
@@ -81,8 +74,6 @@ function findActiveSessionID(configDir: string): string | null {
       try {
         const stats = statSync(filePath)
         const mtime = stats.mtimeMs
-
-        // Only consider files modified within 5 minutes
         if (mtime < fiveMinutesAgo) continue
 
         if (!mostRecent || mtime > mostRecent.mtime) {
@@ -92,7 +83,6 @@ function findActiveSessionID(configDir: string): string | null {
           }
         }
       } catch {
-        // Skip files we can't stat
         continue
       }
     }
@@ -118,13 +108,10 @@ function getLastSessionIdFromConfig(projectPath: string): string | null {
     const content = readFileSync(configFile, "utf-8")
     const config = JSON.parse(content)
 
-    // The config may have project-specific sessions
-    // Check if there's a lastSessionId for this project
     if (config.projects?.[projectPath]?.lastSessionId) {
       return config.projects[projectPath].lastSessionId
     }
 
-    // Fall back to global lastSessionId
     if (config.lastSessionId) {
       return config.lastSessionId
     }
@@ -151,7 +138,7 @@ export function buildForkCommand(options: {
   parentSessionId: string
   newSessionId: string
 }): string {
-  // Build the command with proper escaping
+  // Escape single quotes for shell
   const escapedPath = options.projectPath.replace(/'/g, "'\\''")
 
   return `cd '${escapedPath}' && ` +
@@ -191,9 +178,6 @@ export function buildClaudeCommand(options?: ClaudeOptions): string {
   return parts.join(" ")
 }
 
-/**
- * Get information about the current Claude session for a project
- */
 export function getClaudeSessionInfo(projectPath: string): ClaudeSessionInfo | null {
   const sessionId = getClaudeSessionID(projectPath)
   if (!sessionId) return null

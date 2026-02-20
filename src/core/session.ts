@@ -41,9 +41,6 @@ function generateTitle(): string {
 export class SessionManager {
   private refreshInterval: NodeJS.Timeout | null = null
 
-  /**
-   * Start the session status refresh loop
-   */
   startRefreshLoop(intervalMs = 500): void {
     if (this.refreshInterval) return
 
@@ -52,9 +49,6 @@ export class SessionManager {
     }, intervalMs)
   }
 
-  /**
-   * Stop the refresh loop
-   */
   stopRefreshLoop(): void {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval)
@@ -62,9 +56,6 @@ export class SessionManager {
     }
   }
 
-  /**
-   * Refresh session statuses from tmux
-   */
   async refreshStatuses(): Promise<void> {
     await tmux.refreshSessionCache()
 
@@ -115,9 +106,6 @@ export class SessionManager {
     storage.touch()
   }
 
-  /**
-   * Create a new session
-   */
   async create(options: SessionCreateOptions): Promise<Session> {
     log("create() called with options:", options)
     const storage = getStorage()
@@ -139,7 +127,6 @@ export class SessionManager {
 
     log("Creating tmux session:", tmuxName, "command:", command)
 
-    // Create tmux session
     try {
       await tmux.createSession({
         name: tmuxName,
@@ -155,7 +142,6 @@ export class SessionManager {
       throw err
     }
 
-    // Build toolData - store Claude session mode
     const toolData: Record<string, unknown> = {}
     if (options.tool === "claude" && options.claudeOptions) {
       toolData.claudeSessionMode = options.claudeOptions.sessionMode
@@ -204,13 +190,10 @@ export class SessionManager {
 
     log("Source session found:", source.id, source.tool, source.projectPath)
 
-    // Determine the project path (use worktree path if provided)
     const projectPath = options.worktreePath || source.projectPath
 
-    // For Claude sessions, use real fork with --resume and --fork-session
     if (source.tool === "claude") {
       log("Forking Claude session")
-      // Get the Claude session ID from the running session
       const claudeSessionId = getClaudeSessionID(source.projectPath)
       log("Claude session ID:", claudeSessionId)
 
@@ -219,11 +202,9 @@ export class SessionManager {
         throw new Error("Cannot fork: no active Claude session detected. Session must be running with an active conversation.")
       }
 
-      // Generate new session ID for the fork
       const newClaudeSessionId = randomUUID()
       log("New Claude session ID:", newClaudeSessionId)
 
-      // Build fork command with Claude flags
       const forkCommand = buildForkCommand({
         projectPath,
         parentSessionId: claudeSessionId,
@@ -231,7 +212,6 @@ export class SessionManager {
       })
       log("Fork command:", forkCommand)
 
-      // Create session with the fork command
       log("Calling this.create()")
       const newSession = await this.create({
         title: options.title || `${source.title}-fork`,
@@ -247,7 +227,6 @@ export class SessionManager {
       })
       log("Session created:", newSession.id)
 
-      // Store the Claude session IDs in toolData
       storage.updateSessionField(newSession.id, "tool_data", JSON.stringify({
         claudeSessionId: newClaudeSessionId,
         parentClaudeSessionId: claudeSessionId,
@@ -286,9 +265,6 @@ export class SessionManager {
     return await canFork(session.projectPath)
   }
 
-  /**
-   * Delete a session
-   */
   async delete(sessionId: string): Promise<void> {
     const storage = getStorage()
     const session = storage.getSession(sessionId)
@@ -301,9 +277,6 @@ export class SessionManager {
     storage.touch()
   }
 
-  /**
-   * Restart a session
-   */
   async restart(sessionId: string): Promise<Session> {
     const storage = getStorage()
     const session = storage.getSession(sessionId)
@@ -312,12 +285,10 @@ export class SessionManager {
       throw new Error(`Session not found: ${sessionId}`)
     }
 
-    // Kill existing tmux session if it exists
     if (session.tmuxSession) {
       await tmux.killSession(session.tmuxSession)
     }
 
-    // Create new tmux session
     const newTmuxName = tmux.generateSessionName(session.title)
     await tmux.createSession({
       name: newTmuxName,
@@ -325,7 +296,6 @@ export class SessionManager {
       cwd: session.projectPath
     })
 
-    // Update session
     session.tmuxSession = newTmuxName
     session.status = "running"
     session.lastAccessed = new Date()
@@ -353,9 +323,6 @@ export class SessionManager {
     storage.touch()
   }
 
-  /**
-   * Send a message to a session
-   */
   async sendMessage(sessionId: string, message: string): Promise<void> {
     const storage = getStorage()
     const session = storage.getSession(sessionId)
@@ -368,9 +335,6 @@ export class SessionManager {
     storage.updateSessionField(sessionId, "last_accessed", Date.now())
   }
 
-  /**
-   * Get session output
-   */
   async getOutput(sessionId: string, lines = 100): Promise<string> {
     const storage = getStorage()
     const session = storage.getSession(sessionId)
@@ -405,50 +369,32 @@ export class SessionManager {
     tmux.attachSession(session.tmuxSession)
   }
 
-  /**
-   * Get all sessions
-   */
   list(): Session[] {
     return getStorage().loadSessions()
   }
 
-  /**
-   * Get session by ID
-   */
   get(sessionId: string): Session | null {
     return getStorage().getSession(sessionId)
   }
 
-  /**
-   * Update session title
-   */
   updateTitle(sessionId: string, title: string): void {
     const storage = getStorage()
     storage.updateSessionField(sessionId, "title", title)
     storage.touch()
   }
 
-  /**
-   * Move session to a different group
-   */
   moveToGroup(sessionId: string, groupPath: string): void {
     const storage = getStorage()
     storage.updateSessionField(sessionId, "group_path", groupPath)
     storage.touch()
   }
 
-  /**
-   * Acknowledge a session status change
-   */
   acknowledge(sessionId: string): void {
     const storage = getStorage()
     storage.setAcknowledged(sessionId, true)
     storage.touch()
   }
 
-  /**
-   * Get sessions grouped by status
-   */
   groupByStatus(): {
     running: Session[]
     waiting: Session[]
@@ -466,9 +412,6 @@ export class SessionManager {
     }
   }
 
-  /**
-   * Get sessions grouped by group path
-   */
   groupByPath(): Map<string, Session[]> {
     const sessions = this.list()
     const groups = new Map<string, Session[]>()

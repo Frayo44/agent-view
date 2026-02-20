@@ -17,9 +17,6 @@ export interface Worktree {
   bare: boolean
 }
 
-/**
- * Check if the given directory is inside a git repository
- */
 export async function isGitRepo(dir: string): Promise<boolean> {
   try {
     await execAsync(`git -C "${dir}" rev-parse --git-dir`)
@@ -29,9 +26,6 @@ export async function isGitRepo(dir: string): Promise<boolean> {
   }
 }
 
-/**
- * Get the root directory of the git repository containing dir
- */
 export async function getRepoRoot(dir: string): Promise<string> {
   try {
     const { stdout } = await execAsync(`git -C "${dir}" rev-parse --show-toplevel`)
@@ -41,9 +35,6 @@ export async function getRepoRoot(dir: string): Promise<string> {
   }
 }
 
-/**
- * Get the current branch name for the repository at dir
- */
 export async function getCurrentBranch(dir: string): Promise<string> {
   try {
     const { stdout } = await execAsync(`git -C "${dir}" rev-parse --abbrev-ref HEAD`)
@@ -53,9 +44,6 @@ export async function getCurrentBranch(dir: string): Promise<string> {
   }
 }
 
-/**
- * Check if a branch exists in the repository
- */
 export async function branchExists(repoDir: string, branchName: string): Promise<boolean> {
   try {
     await execAsync(`git -C "${repoDir}" show-ref --verify --quiet refs/heads/${branchName}`)
@@ -107,9 +95,6 @@ export function validateBranchName(name: string): string | null {
   return null
 }
 
-/**
- * Sanitize a string to be a valid branch name
- */
 export function sanitizeBranchName(name: string): string {
   let sanitized = name
     .replace(/ /g, "-")
@@ -142,7 +127,6 @@ export function sanitizeBranchName(name: string): string {
  * Always places worktrees under <repo>/.worktrees/<branch>.
  */
 export function generateWorktreePath(repoDir: string, branchName: string): string {
-  // Sanitize branch name for filesystem
   const sanitized = branchName
     .replace(/\//g, "-")
     .replace(/ /g, "-")
@@ -162,18 +146,15 @@ export async function createWorktree(
   worktreePath?: string,
   baseBranch?: string
 ): Promise<string> {
-  // Validate branch name first
   const validationError = validateBranchName(branchName)
   if (validationError) {
     throw new Error(`invalid branch name: ${validationError}`)
   }
 
-  // Check if it's a git repo
   if (!(await isGitRepo(repoDir))) {
     throw new Error("not a git repository")
   }
 
-  // Generate worktree path if not provided
   const wtPath = worktreePath || generateWorktreePath(repoDir, branchName)
 
   let cmd: string
@@ -196,9 +177,6 @@ export async function createWorktree(
   }
 }
 
-/**
- * List all worktrees for the repository at repoDir
- */
 export async function listWorktrees(repoDir: string): Promise<Worktree[]> {
   if (!(await isGitRepo(repoDir))) {
     throw new Error("not a git repository")
@@ -309,9 +287,6 @@ export async function isWorktree(dir: string): Promise<boolean> {
   }
 }
 
-/**
- * Check if the repository at dir has uncommitted changes
- */
 export async function hasUncommittedChanges(dir: string): Promise<boolean> {
   try {
     const { stdout } = await execAsync(`git -C "${dir}" status --porcelain`)
@@ -349,18 +324,12 @@ export async function getDefaultBranch(repoDir: string): Promise<string> {
   throw new Error("could not determine default branch (no origin/HEAD, no main or master branch)")
 }
 
-/**
- * Generate a unique branch name based on a title
- */
 export function generateBranchName(title?: string): string {
   const base = title ? sanitizeBranchName(title.toLowerCase()) : "session"
   const timestamp = Date.now().toString(36)
   return `${base}-${timestamp}`
 }
 
-/**
- * Prune stale worktree references
- */
 export async function pruneWorktrees(repoDir: string): Promise<void> {
   try {
     await execAsync(`git -C "${repoDir}" worktree prune`)

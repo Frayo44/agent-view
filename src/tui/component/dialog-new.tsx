@@ -69,11 +69,9 @@ export function DialogNew() {
   const renderer = useRenderer()
   const { config } = useConfig()
 
-  // Get default tool from config, find its index
   const defaultTool = config().defaultTool || "claude"
   const defaultToolIndex = TOOLS.findIndex(t => t.value === defaultTool)
 
-  // Form state
   const [title, setTitle] = createSignal("")
   const [selectedTool, setSelectedTool] = createSignal<Tool>(defaultTool)
   const [customCommand, setCustomCommand] = createSignal("")
@@ -83,10 +81,8 @@ export function DialogNew() {
   const [spinnerFrame, setSpinnerFrame] = createSignal(0)
   const [errorMessage, setErrorMessage] = createSignal("")
 
-  // Spinner animation frames
   const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
-  // Animate spinner while creating
   createEffect(() => {
     if (creating()) {
       const interval = setInterval(() => {
@@ -96,50 +92,41 @@ export function DialogNew() {
     }
   })
 
-  // Claude session mode state (new or resume)
   const [claudeSessionMode, setClaudeSessionMode] = createSignal<ClaudeSessionMode>("new")
   const [skipPermissions, setSkipPermissions] = createSignal(false)
 
-  // Worktree state
   const [useWorktree, setUseWorktree] = createSignal(false)
   const [worktreeBranch, setWorktreeBranch] = createSignal("")
   const [isInGitRepo, setIsInGitRepo] = createSignal(false)
   const [useBaseDevelop, setUseBaseDevelop] = createSignal(false)
   const [developExists, setDevelopExists] = createSignal(false)
 
-  // Storage for history
   const storage = getStorage()
 
-  // Focus state for Tab navigation
   const [focusedField, setFocusedField] = createSignal<FocusField>("title")
   const [toolIndex, setToolIndex] = createSignal(defaultToolIndex >= 0 ? defaultToolIndex : 0)
 
-  // Input refs
   let titleInputRef: InputRenderable | undefined
   let customCommandInputRef: InputRenderable | undefined
   let pathInputRef: InputRenderable | undefined
   let branchInputRef: InputRenderable | undefined
 
-  // Reset Claude session mode when tool changes
   createEffect(() => {
     if (selectedTool() !== "claude") {
       setClaudeSessionMode("new")
     }
   })
 
-  // Check if current path is a git repo and if develop branch exists
   createEffect(async () => {
     const path = projectPath()
     try {
       const result = await isGitRepo(path)
       setIsInGitRepo(result)
-      // Reset worktree option if not in git repo
       if (!result) {
         setUseWorktree(false)
         setDevelopExists(false)
         setUseBaseDevelop(false)
       } else {
-        // Check if develop branch exists
         const repoRoot = await getRepoRoot(path)
         const hasDevelop = await branchExists(repoRoot, "develop")
         setDevelopExists(hasDevelop)
@@ -155,32 +142,27 @@ export function DialogNew() {
     }
   })
 
-  // Focus management - blur/focus inputs based on focusedField
   createEffect(() => {
     const field = focusedField()
 
-    // Handle title input
     if (field === "title") {
       titleInputRef?.focus()
     } else {
       titleInputRef?.blur()
     }
 
-    // Handle custom command input
     if (field === "customCommand") {
       customCommandInputRef?.focus()
     } else {
       customCommandInputRef?.blur()
     }
 
-    // Handle path input
     if (field === "path") {
       pathInputRef?.focus()
     } else {
       pathInputRef?.blur()
     }
 
-    // Handle branch input
     if (field === "branch") {
       branchInputRef?.focus()
     } else {
@@ -188,10 +170,8 @@ export function DialogNew() {
     }
   })
 
-  // Get the list of focusable fields based on current state
   function getFocusableFields(): FocusField[] {
     const fields: FocusField[] = ["title", "tool"]
-    // Add checkboxes when Claude is selected
     if (selectedTool() === "claude") {
       fields.push("resumeSession")
       fields.push("skipPermissions")
@@ -216,12 +196,10 @@ export function DialogNew() {
     setErrorMessage("")
 
     try {
-      // Validate custom command if selected
       if (selectedTool() === "custom" && !customCommand().trim()) {
         throw new Error("Please enter a custom command")
       }
 
-      // Validate and set project path first (needed for relative command validation)
       let sessionProjectPath = projectPath().trim() || process.cwd()
       // Expand ~ to home directory (shell doesn't do this for us)
       if (sessionProjectPath.startsWith("~")) {
@@ -231,7 +209,6 @@ export function DialogNew() {
         throw new Error(`Directory '${sessionProjectPath}' does not exist`)
       }
 
-      // Now validate the command (pass cwd for relative path resolution)
       const toolCmd = getToolCommand(selectedTool(), customCommand())
       const cmdToCheck = toolCmd.split(" ")[0] || toolCmd
       setStatusMessage(`Checking ${cmdToCheck}...`)
@@ -244,7 +221,6 @@ export function DialogNew() {
       let worktreeRepo: string | undefined
       let worktreeBranchName: string | undefined
 
-      // Handle worktree creation
       if (useWorktree() && isInGitRepo()) {
         setStatusMessage("Creating worktree...")
         const repoRoot = await getRepoRoot(projectPath())
@@ -252,16 +228,13 @@ export function DialogNew() {
           ? sanitizeBranchName(worktreeBranch())
           : generateBranchName(title() || undefined)
 
-        // Get worktree config values
         const worktreeConfig = config().worktree || {}
 
-        // Determine base branch for worktree
         // Priority: 1) "Base on develop" checkbox, 2) config default, 3) undefined (HEAD)
         let baseBranch: string | undefined
         if (useBaseDevelop()) {
           baseBranch = "develop"
         } else if (worktreeConfig.defaultBaseBranch && worktreeConfig.defaultBaseBranch !== "main") {
-          // Only use config base branch if it's not "main" (which is essentially HEAD)
           baseBranch = worktreeConfig.defaultBaseBranch
         }
 
@@ -275,7 +248,6 @@ export function DialogNew() {
 
       setStatusMessage("Starting session...")
 
-      // Build Claude options if Claude is selected
       const claudeOptions = selectedTool() === "claude" ? {
         sessionMode: claudeSessionMode(),
         skipPermissions: skipPermissions()
@@ -292,7 +264,6 @@ export function DialogNew() {
         claudeOptions
       })
 
-      // Save to history for autocomplete suggestions
       projectPathHistory.addEntry(storage, projectPath())
       if (useWorktree() && worktreeBranchName) {
         branchNameHistory.addEntry(storage, worktreeBranchName)
@@ -303,9 +274,7 @@ export function DialogNew() {
         : `Created ${session.title}`
       toast.show({ message, variant: "success", duration: 2000 })
 
-      // Auto-attach to the new session
       if (session.tmuxSession) {
-        // Suspend TUI and attach
         renderer.suspend()
         attachSessionSync(session.tmuxSession)
         renderer.resume()
@@ -324,21 +293,18 @@ export function DialogNew() {
   }
 
   useKeyboard((evt) => {
-    // ESC to close dialog - handle explicitly since input fields may prevent default
     if (evt.name === "escape") {
       evt.preventDefault()
       dialog.clear()
       return
     }
 
-    // Enter to create (when not in multi-line context)
     if (evt.name === "return" && !evt.shift) {
       evt.preventDefault()
       handleCreate()
       return
     }
 
-    // Tab navigation
     if (evt.name === "tab") {
       evt.preventDefault()
       const fields = getFocusableFields()
@@ -357,7 +323,6 @@ export function DialogNew() {
       return
     }
 
-    // Arrow key navigation for tool selection
     if (focusedField() === "tool") {
       if (evt.name === "up" || evt.name === "k") {
         evt.preventDefault()
@@ -383,21 +348,18 @@ export function DialogNew() {
       }
     }
 
-    // Space to toggle worktree checkbox
     if (focusedField() === "worktree" && evt.name === "space") {
       evt.preventDefault()
       setUseWorktree(!useWorktree())
       return
     }
 
-    // Space to toggle resume session checkbox
     if (focusedField() === "resumeSession" && evt.name === "space") {
       evt.preventDefault()
       setClaudeSessionMode(claudeSessionMode() === "new" ? "resume" : "new")
       return
     }
 
-    // Space to toggle skip permissions checkbox
     if (focusedField() === "skipPermissions" && evt.name === "space") {
       evt.preventDefault()
       setSkipPermissions(!skipPermissions())
@@ -434,7 +396,6 @@ export function DialogNew() {
             focusedTextColor={theme.text}
             ref={(r) => {
               titleInputRef = r
-              // Initial focus
               setTimeout(() => {
                 if (focusedField() === "title") {
                   titleInputRef?.focus()

@@ -79,7 +79,6 @@ export function Home() {
   const command = useCommandDialog()
   const keybind = useKeybind()
 
-  // Get shortcuts from config for direct keybind handling
   const shortcuts = createMemo(() => getShortcuts())
 
   const [selectedIndex, setSelectedIndex] = createSignal(0)
@@ -89,10 +88,8 @@ export function Home() {
   let previewDebounceTimer: ReturnType<typeof setTimeout> | undefined
   let previewFetchAbort = false
 
-  // Check if we should use dual-column layout
   const useDualColumn = createMemo(() => dimensions().width >= DUAL_COLUMN_MIN_WIDTH)
 
-  // Calculate panel widths
   const leftWidth = createMemo(() => {
     if (!useDualColumn()) return dimensions().width
     return Math.floor(dimensions().width * LEFT_PANEL_RATIO)
@@ -112,16 +109,13 @@ export function Home() {
     }
   })
 
-  // Get all sessions
   const allSessions = createMemo(() => sync.session.list())
 
-  // Get grouped items (groups + sessions flattened)
   const groupedItems = createMemo(() => {
     const groups = ensureDefaultGroup(sync.group.list())
     return flattenGroupTree(allSessions(), groups)
   })
 
-  // Keep selection in bounds
   createEffect(() => {
     const len = groupedItems().length
     if (selectedIndex() >= len && len > 0) {
@@ -129,16 +123,13 @@ export function Home() {
     }
   })
 
-  // Get the selected item (could be group or session)
   const selectedItem = createMemo(() => groupedItems()[selectedIndex()])
 
-  // Get the selected session (only if a session is selected)
   const selectedSession = createMemo(() => {
     const item = selectedItem()
     return item?.type === "session" ? item.session : undefined
   })
 
-  // Get the selected group (only if a group is selected)
   const selectedGroup = createMemo(() => {
     const item = selectedItem()
     return item?.type === "group" ? item.group : undefined
@@ -194,7 +185,6 @@ export function Home() {
     }
   })
 
-  // Session stats
   const stats = createMemo(() => {
     const byStatus = sync.session.byStatus()
     return {
@@ -213,7 +203,6 @@ export function Home() {
     setSelectedIndex(next)
   }
 
-  // Jump to group by index (1-9)
   function jumpToGroup(groupIndex: number) {
     const items = groupedItems()
     const idx = items.findIndex(item => item.type === "group" && item.groupIndex === groupIndex)
@@ -222,7 +211,6 @@ export function Home() {
     }
   }
 
-  // Handle deleting a group
   async function handleDeleteGroup(group: Group) {
     const sessionCount = getGroupSessionCount(allSessions(), group.path)
 
@@ -286,7 +274,6 @@ export function Home() {
     }
   }
 
-  // Handle executing a shortcut directly
   async function handleShortcut(shortcut: ReturnType<typeof getShortcuts>[0]) {
     try {
       const session = await executeShortcut({ shortcut })
@@ -306,14 +293,12 @@ export function Home() {
   async function handleFork(session: Session) {
     log("handleFork called for session:", session.id, "tool:", session.tool, "projectPath:", session.projectPath)
 
-    // Only Claude sessions can be forked
     if (session.tool !== "claude") {
       log("Fork rejected: not a claude session")
       toast.show({ message: "Only Claude sessions can be forked", variant: "error", duration: 2000 })
       return
     }
 
-    // Check if session has an active Claude session ID
     log("Checking canFork for projectPath:", session.projectPath)
     const canForkSession = await canFork(session.projectPath)
     log("canFork result:", canForkSession)
@@ -340,11 +325,9 @@ export function Home() {
     }
   }
 
-  // Keyboard navigation
   useKeyboard((evt) => {
     log("Home useKeyboard:", evt.name, "dialog.stack.length:", dialog.stack.length)
 
-    // Skip if dialog is open
     if (dialog.stack.length > 0) return
 
     if (evt.name === "up" || evt.name === "k") {
@@ -476,7 +459,6 @@ export function Home() {
       return
     }
 
-    // Check for direct shortcut keybinds
     const currentShortcuts = shortcuts()
     for (const shortcut of currentShortcuts) {
       if (shortcut.keybind && keybind.matchDynamic(shortcut.keybind, evt)) {
@@ -486,26 +468,22 @@ export function Home() {
     }
   })
 
-  // Get preview lines that fit in the available height
   const previewLines = createMemo(() => {
     const content = previewContent()
     if (!content) return []
 
     const lines = content.split("\n")
-    // Strip trailing empty lines
     while (lines.length > 0 && lines[lines.length - 1]?.trim() === "") {
       lines.pop()
     }
     return lines
   })
 
-  // Render group header
   function GroupHeader(props: { group: Group; index: number }) {
     const isSelected = createMemo(() => props.index === selectedIndex())
     const sessionCount = createMemo(() => getGroupSessionCount(allSessions(), props.group.path))
     const statusSummary = createMemo(() => getGroupStatusSummary(allSessions(), props.group.path))
 
-    // Find group index for hotkey hint
     const item = createMemo(() => groupedItems()[props.index])
     const groupIndex = createMemo(() => item()?.groupIndex)
 
@@ -569,7 +547,6 @@ export function Home() {
     )
   }
 
-  // Render session list item (indented under group)
   function SessionItem(props: { session: Session; index: number; indented?: boolean }) {
     const isSelected = createMemo(() => props.index === selectedIndex())
     const statusColor = createMemo(() => {
@@ -586,7 +563,6 @@ export function Home() {
       ? props.session.title.slice(0, maxTitleLen - 2) + ".."
       : props.session.title
 
-    // Indentation for sessions under groups
     const indent = props.indented ? 2 : 0
 
     return (
@@ -635,7 +611,6 @@ export function Home() {
     )
   }
 
-  // Render preview pane header
   function PreviewHeader() {
     const session = selectedSession()
     if (!session) return null
@@ -684,7 +659,6 @@ export function Home() {
     )
   }
 
-  // Render empty state with logo
   function EmptyState() {
     return (
       <box flexGrow={1} alignItems="center" justifyContent="center" flexDirection="column" gap={2}>
@@ -700,7 +674,6 @@ export function Home() {
     )
   }
 
-  // Render logo in preview when no session
   function PreviewLogo() {
     return (
       <box flexGrow={1} alignItems="center" justifyContent="center" flexDirection="column">

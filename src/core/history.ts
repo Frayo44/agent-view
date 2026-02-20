@@ -12,9 +12,6 @@ export class HistoryManager {
     private maxItems: number = 30
   ) {}
 
-  /**
-   * Get the full history list from storage
-   */
   getHistory(storage: Storage): string[] {
     const raw = storage.getMeta(this.storageKey)
     if (!raw) return []
@@ -40,14 +37,9 @@ export class HistoryManager {
 
     // Remove duplicates (case-sensitive)
     const filtered = history.filter((item) => item !== value)
-
-    // Prepend the new entry
     filtered.unshift(value)
-
-    // Trim to max items
     const trimmed = filtered.slice(0, this.maxItems)
 
-    // Save back to storage
     storage.setMeta(this.storageKey, JSON.stringify(trimmed))
   }
 
@@ -69,16 +61,10 @@ export class HistoryManager {
     return results.map((r) => r.target)
   }
 
-  /**
-   * Clear all history entries
-   */
   clear(storage: Storage): void {
     storage.setMeta(this.storageKey, JSON.stringify([]))
   }
 
-  /**
-   * Remove a specific entry from history
-   */
   removeEntry(storage: Storage, value: string): void {
     const history = this.getHistory(storage)
     const filtered = history.filter((item) => item !== value)

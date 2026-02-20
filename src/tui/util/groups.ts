@@ -16,9 +16,6 @@ export interface GroupedItem {
 export const DEFAULT_GROUP_PATH = "my-sessions"
 export const DEFAULT_GROUP_NAME = "My Sessions"
 
-/**
- * Ensure the default "My Sessions" group exists
- */
 export function ensureDefaultGroup(groups: Group[]): Group[] {
   const hasDefault = groups.some(g => g.path === DEFAULT_GROUP_PATH)
   if (hasDefault) return groups
@@ -123,16 +120,10 @@ export function flattenGroupTree(sessions: Session[], groups: Group[]): GroupedI
   return result
 }
 
-/**
- * Get session count for a group
- */
 export function getGroupSessionCount(sessions: Session[], groupPath: string): number {
   return sessions.filter(s => (s.groupPath || DEFAULT_GROUP_PATH) === groupPath).length
 }
 
-/**
- * Get status summary for a group
- */
 export function getGroupStatusSummary(sessions: Session[], groupPath: string): {
   running: number
   waiting: number
@@ -146,9 +137,6 @@ export function getGroupStatusSummary(sessions: Session[], groupPath: string): {
   }
 }
 
-/**
- * Generate a unique group path from a name
- */
 export function generateGroupPath(name: string, existingPaths: string[]): string {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
   let path = base || "group"

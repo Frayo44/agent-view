@@ -31,7 +31,6 @@ function ensureGroup(groupPath: string): void {
   const exists = groups.some(g => g.path === sanitizedPath)
 
   if (!exists) {
-    // Create the group
     const newGroup: Group = {
       path: sanitizedPath,
       name: groupPath, // Use original name for display
@@ -54,11 +53,9 @@ export async function executeShortcut(options: ExecuteShortcutOptions): Promise<
   const { shortcut } = options
   const manager = getSessionManager()
 
-  // Ensure the target group exists
   const groupPath = sanitizeGroupPath(shortcut.groupPath)
   ensureGroup(shortcut.groupPath)
 
-  // Build session create options from shortcut
   const createOptions: SessionCreateOptions = {
     title: shortcut.name,
     projectPath: shortcut.projectPath,
@@ -67,7 +64,6 @@ export async function executeShortcut(options: ExecuteShortcutOptions): Promise<
     command: shortcut.command
   }
 
-  // Create the session
   const session = await manager.create(createOptions)
 
   return session
