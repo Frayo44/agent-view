@@ -4,6 +4,7 @@
  */
 
 import { render, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
+import type { CliRenderer } from "@opentui/core"
 import fs from "fs"
 import path from "path"
 import os from "os"
@@ -65,6 +66,8 @@ export async function tui(options: TuiOptions = {}) {
   const mode = options.mode ?? (await detectTerminalMode())
 
   return new Promise<void>((resolve) => {
+    let rendererRef: CliRenderer | null = null
+
     const onExit = async () => {
       try {
         storage.close()
@@ -73,11 +76,9 @@ export async function tui(options: TuiOptions = {}) {
         // Ignore cleanup errors
       }
 
-      // Restore terminal state before exiting
-      process.stdout.write("\x1b[?1049l") // Exit alternate screen buffer
-      process.stdout.write("\x1b[?25h")   // Show cursor
-      process.stdout.write("\x1b[0m")     // Reset all attributes
-      process.stdout.write("\x1b[2J\x1b[H") // Clear screen and move to top
+      // Delegate full terminal cleanup to OpenTUI's renderer (disables mouse
+      // tracking, kitty keyboard, bracketed paste, alternate screen, etc.)
+      rendererRef?.destroy()
 
       resolve()
       process.exit(0)
@@ -85,7 +86,7 @@ export async function tui(options: TuiOptions = {}) {
 
     render(
       () => (
-        <ErrorBoundary fallback={(error: Error) => <ErrorComponent error={error} />}>
+        <ErrorBoundary fallback={(error: Error) => <ErrorComponent error={error} onRendererReady={(r) => { rendererRef = r }} />}>
           <KVProvider>
             <ConfigProvider>
               <RouteProvider>
@@ -95,7 +96,7 @@ export async function tui(options: TuiOptions = {}) {
                       <KeybindProvider>
                         <DialogProvider>
                           <CommandProvider>
-                            <App onExit={onExit} />
+                            <App onExit={onExit} onRendererReady={(r) => { rendererRef = r }} />
                           </CommandProvider>
                         </DialogProvider>
                       </KeybindProvider>
@@ -118,7 +119,7 @@ export async function tui(options: TuiOptions = {}) {
   })
 }
 
-function App(props: { onExit: () => Promise<void> }) {
+function App(props: { onExit: () => Promise<void>; onRendererReady: (r: CliRenderer) => void }) {
   log("App component rendering")
   const route = useRoute()
   const dimensions = useTerminalDimensions()
@@ -135,6 +136,7 @@ function App(props: { onExit: () => Promise<void> }) {
   // Disable stdout interception to allow keyboard input
   onMount(() => {
     renderer.disableStdoutInterception()
+    props.onRendererReady(renderer)
   })
 
   // Register global commands
@@ -237,11 +239,17 @@ function App(props: { onExit: () => Promise<void> }) {
   )
 }
 
-function ErrorComponent(props: { error: Error }) {
+function ErrorComponent(props: { error: Error; onRendererReady: (r: CliRenderer) => void }) {
   const dimensions = useTerminalDimensions()
+  const renderer = useRenderer()
+
+  onMount(() => {
+    props.onRendererReady(renderer)
+  })
 
   useKeyboard((evt) => {
     if (evt.ctrl && evt.name === "c") {
+      renderer.destroy()
       process.exit(1)
     }
   })
