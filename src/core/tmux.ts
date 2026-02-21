@@ -132,6 +132,7 @@ export async function createSession(options: {
   await execAsync(createCmd)
   registerSessionInCache(options.name)
 
+  // Set environment variables for the tmux session
   const envVars = options.env || {}
   for (const [key, value] of Object.entries(envVars)) {
     await execAsync(`tmux set-environment -t "${options.name}" ${key} "${value}"`)
@@ -147,6 +148,16 @@ export async function createSession(options: {
       // Escape single quotes in the command for bash -c wrapper
       const escapedCmd = options.command.replace(/'/g, "'\"'\"'")
       cmdToSend = `bash -c '${escapedCmd}'`
+    }
+
+    // Prepend env var exports so the command has access to them
+    // (tmux set-environment doesn't affect the already-running shell)
+    const envExports = Object.entries(envVars)
+      .map(([key, value]) => `export ${key}="${value}"`)
+      .join("; ")
+
+    if (envExports) {
+      cmdToSend = `${envExports}; ${cmdToSend}`
     }
 
     await sendKeys(options.name, cmdToSend)

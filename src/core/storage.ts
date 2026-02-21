@@ -11,6 +11,7 @@ import fs from "fs"
 import type { Session, Group, StatusUpdate, Tool, SessionStatus } from "./types"
 
 const SCHEMA_VERSION = 1
+const NOTIFICATIONS_DIR = path.join(os.homedir(), ".agent-view", "notifications")
 
 export interface StorageOptions {
   dbPath?: string
@@ -37,6 +38,11 @@ export class Storage {
     this.db.exec("PRAGMA journal_mode = WAL")
     this.db.exec("PRAGMA busy_timeout = 5000")
     this.db.exec("PRAGMA foreign_keys = ON")
+
+    // Ensure notifications directory exists for hook signals
+    if (!fs.existsSync(NOTIFICATIONS_DIR)) {
+      fs.mkdirSync(NOTIFICATIONS_DIR, { recursive: true, mode: 0o700 })
+    }
   }
 
   private getDefaultPath(): string {

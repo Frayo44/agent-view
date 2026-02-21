@@ -26,6 +26,7 @@ import type { Session, Group } from "@/core/types"
 import { formatRelativeTime, formatSmartTime, truncatePath } from "@tui/util/locale"
 import { STATUS_ICONS } from "@tui/util/status"
 import { sortSessionsByCreatedAt } from "@tui/util/session"
+import { getPendingAttach, clearPendingAttach, type PendingAttach } from "@/core/notification"
 import { createListNavigation } from "@tui/util/navigation"
 import {
   flattenGroupTree,
@@ -85,6 +86,7 @@ export function Home() {
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [previewContent, setPreviewContent] = createSignal<string>("")
   const [previewLoading, setPreviewLoading] = createSignal(false)
+  const [pendingNotification, setPendingNotification] = createSignal<ReturnType<typeof getPendingAttach>>(null)
   let scrollRef: ScrollBoxRenderable | undefined
   let previewDebounceTimer: ReturnType<typeof setTimeout> | undefined
   let previewFetchAbort = false
@@ -122,6 +124,22 @@ export function Home() {
     if (selectedIndex() >= len && len > 0) {
       setSelectedIndex(len - 1)
     }
+  })
+
+  // Check for pending notifications from hooks
+  createEffect(() => {
+    const pending = getPendingAttach()
+    setPendingNotification(pending)
+  })
+
+  // Poll for pending notifications
+  const pendingCheckInterval = setInterval(() => {
+    const pending = getPendingAttach()
+    setPendingNotification(pending)
+  }, 500)
+
+  onCleanup(() => {
+    clearInterval(pendingCheckInterval)
   })
 
   const selectedItem = createMemo(() => groupedItems()[selectedIndex()])
@@ -253,6 +271,40 @@ export function Home() {
     }
   }
 
+  /**
+   * Check for pending attach from notification and auto-attach
+   * Returns true if we handled a pending attach
+   */
+  function tryPendingAttach(): boolean {
+    const pending = pendingNotification()
+    if (!pending) return false
+
+    // Find the session
+    const session = allSessions().find(s => s.id === pending.sessionId)
+    if (!session || !session.tmuxSession) {
+      clearPendingAttach()
+      setPendingNotification(null)
+      return false
+    }
+
+    // Clear pending and attach
+    clearPendingAttach()
+    setPendingNotification(null)
+
+    toast.show({
+      message: `Attaching to ${session.title}`,
+      variant: "success",
+      duration: 1000
+    })
+
+    // Small delay to show the toast
+    setTimeout(() => {
+      handleAttach(session)
+    }, 100)
+
+    return true
+  }
+
   async function handleDelete(session: Session) {
     try {
       await sync.session.delete(session.id)
@@ -327,6 +379,14 @@ export function Home() {
     log("Home useKeyboard:", evt.name, "dialog.stack.length:", dialog.stack.length)
 
     if (dialog.stack.length > 0) return
+
+    // Check for pending attach from notification
+    // If 'a' is pressed and there's a pending notification, attach to that session
+    if (evt.name === "a" && !evt.shift && !evt.ctrl) {
+      if (tryPendingAttach()) {
+        return // Handled by pending attach
+      }
+    }
 
     if (evt.name === "up" || evt.name === "k") {
       move(-1)
@@ -711,6 +771,24 @@ export function Home() {
           <text fg={theme.textMuted}>{stats().total} sessions</text>
         </box>
       </box>
+
+      {/* Pending notification banner */}
+      <Show when={pendingNotification()}>
+        {(pending: () => PendingAttach) => (
+          <box
+            flexDirection="row"
+            justifyContent="center"
+            paddingLeft={2}
+            paddingRight={2}
+            height={1}
+            backgroundColor={theme.success}
+          >
+            <text fg={theme.background} attributes={TextAttributes.BOLD}>
+              Session '{pending().sessionTitle}' finished - Press 'a' to attach
+            </text>
+          </box>
+        )}
+      </Show>
 
       {/* Main content area */}
       <Show

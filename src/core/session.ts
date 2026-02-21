@@ -12,6 +12,7 @@ import path from "path"
 import fs from "fs"
 import os from "os"
 import { getClaudeSessionID, buildForkCommand, canFork, buildClaudeCommand } from "./claude"
+import { checkNotificationSignals } from "./notification"
 
 const logFile = path.join(os.homedir(), ".agent-orchestrator", "debug.log")
 function log(...args: unknown[]) {
@@ -40,6 +41,7 @@ function generateTitle(): string {
 
 export class SessionManager {
   private refreshInterval: NodeJS.Timeout | null = null
+  private previousStatuses: Map<string, SessionStatus> = new Map()
 
   startRefreshLoop(intervalMs = 500): void {
     if (this.refreshInterval) return
@@ -65,10 +67,15 @@ export class SessionManager {
     for (const session of sessions) {
       if (!session.tmuxSession) continue
 
+      const previousStatus = this.previousStatuses.get(session.id)
+      let newStatus: SessionStatus
+
       const exists = tmux.sessionExists(session.tmuxSession)
       if (!exists) {
         // Session was killed externally
-        storage.writeStatus(session.id, "stopped", session.tool)
+        newStatus = "stopped"
+        storage.writeStatus(session.id, newStatus, session.tool)
+        this.previousStatuses.set(session.id, newStatus)
         continue
       }
 
@@ -86,22 +93,30 @@ export class SessionManager {
 
         if (status.isWaiting) {
           // Agent is waiting for user input (permission prompt, question, etc.)
-          storage.writeStatus(session.id, "waiting", session.tool)
+          newStatus = "waiting"
         } else if (status.hasError) {
           // Agent encountered an error
-          storage.writeStatus(session.id, "error", session.tool)
+          newStatus = "error"
         } else if (status.isBusy || isActive) {
           // Agent is actively working (spinner visible, recent output, etc.)
-          storage.writeStatus(session.id, "running", session.tool)
+          newStatus = "running"
         } else {
           // No recent activity and no waiting prompt - idle
-          storage.writeStatus(session.id, "idle", session.tool)
+          newStatus = "idle"
         }
       } catch {
         // Fallback: use activity-based detection if capture fails
-        storage.writeStatus(session.id, isActive ? "running" : "idle", session.tool)
+        newStatus = isActive ? "running" : "idle"
       }
+
+      storage.writeStatus(session.id, newStatus, session.tool)
+      this.previousStatuses.set(session.id, newStatus)
     }
+
+    // Check for notification signals from Claude Code hooks
+    // This enables terminal-agnostic notifications
+    const sessionsInfo = sessions.map(s => ({ id: s.id, title: s.title }))
+    checkNotificationSignals(sessionsInfo)
 
     storage.touch()
   }
