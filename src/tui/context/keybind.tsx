@@ -94,7 +94,7 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
           if (!store.leader) return
           setLeader(false)
           if (focus && !focus.isDestroyed) {
-            focus.focus()
+            try { focus.focus() } catch {}
           }
         }, 2000)
         return
@@ -102,7 +102,7 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
 
       if (!active) {
         if (focus && !focus.isDestroyed && !renderer.currentFocusedRenderable) {
-          focus.focus()
+          try { focus.focus() } catch {}
         }
         setStore("leader", false)
       }

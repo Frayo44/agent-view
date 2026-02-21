@@ -55,6 +55,9 @@ export async function tui(options: TuiOptions = {}) {
     process.exit(1)
   }
 
+  // Set terminal title
+  process.stdout.write("\x1b]0;Agent View\x07")
+
   // Initialize storage
   const storage = new Storage()
   storage.migrate()

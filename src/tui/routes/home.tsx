@@ -826,14 +826,6 @@ export function Home() {
         justifyContent="space-between"
       >
         <box flexDirection="column" alignItems="center">
-          <text fg={theme.text}>↑↓</text>
-          <text fg={theme.textMuted}>navigate</text>
-        </box>
-        <box flexDirection="column" alignItems="center">
-          <text fg={theme.text}>←→</text>
-          <text fg={theme.textMuted}>fold</text>
-        </box>
-        <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>Enter</text>
           <text fg={theme.textMuted}>attach</text>
         </box>

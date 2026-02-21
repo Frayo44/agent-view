@@ -117,7 +117,8 @@ av
 | Key | Action |
 |-----|--------|
 | `Ctrl+K` | Detach and open command palette |
-| `Ctrl+T` | Open terminal pane |
+| `Ctrl+T` | Toggle terminal pane (open/close) |
+| `Ctrl+O` | Toggle focus between panes |
 | `Ctrl+Q` | Detach (return to dashboard) |
 
 ### Create a Session

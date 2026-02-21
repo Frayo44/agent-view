@@ -125,12 +125,20 @@ export async function createSession(options: {
   command?: string
   cwd?: string
   env?: Record<string, string>
+  windowTitle?: string
 }): Promise<void> {
   const cwd = options.cwd || process.env.HOME || "/tmp"
 
   const createCmd = `tmux new-session -d -s "${options.name}" -c "${cwd}"`
   await execAsync(createCmd)
   registerSessionInCache(options.name)
+
+  // Set window title if provided and prevent automatic renaming
+  if (options.windowTitle) {
+    await execAsync(`tmux rename-window -t "${options.name}" "${options.windowTitle}"`)
+    await execAsync(`tmux set-option -t "${options.name}" automatic-rename off`)
+    await execAsync(`tmux set-option -t "${options.name}" allow-rename off`)
+  }
 
   const envVars = options.env || {}
   for (const [key, value] of Object.entries(envVars)) {
@@ -527,16 +535,32 @@ export function attachSessionSync(sessionName: string): void {
   // Bind Ctrl+K to create signal file and detach (opens command palette on return)
   spawnSync("tmux", ["bind-key", "-n", "C-k", "run-shell", `touch ${COMMAND_PALETTE_SIGNAL}`, "\\;", "detach-client"], { stdio: "ignore" })
 
-  // Bind Ctrl+T to open a terminal pane (split horizontally, half screen)
-  spawnSync("tmux", ["bind-key", "-n", "C-t", "split-window", "-v", "-c", "#{pane_current_path}"], { stdio: "ignore" })
+  // Bind Ctrl+T to toggle terminal pane
+  // - If 1 pane: create split for terminal
+  // - If 2+ panes: kill the terminal pane (pane 1)
+  spawnSync("tmux", [
+    "bind-key", "-n", "C-t",
+    "if-shell",
+    "[ $(tmux display -p '#{window_panes}') -eq 1 ]",
+    "split-window -v",
+    "kill-pane -t :.1"
+  ], { stdio: "ignore" })
+
+  // Bind Ctrl+O to cycle between panes
+  spawnSync("tmux", ["bind-key", "-n", "C-o", "select-pane", "-t", ":.+"], { stdio: "ignore" })
 
   // Configure status bar with shortcuts
   spawnSync("tmux", ["set-option", "-t", sessionName, "status", "on"], { stdio: "ignore" })
   spawnSync("tmux", ["set-option", "-t", sessionName, "status-position", "bottom"], { stdio: "ignore" })
   spawnSync("tmux", ["set-option", "-t", sessionName, "status-style", "bg=#1e1e2e,fg=#cdd6f4"], { stdio: "ignore" })
-  spawnSync("tmux", ["set-option", "-t", sessionName, "status-left", ""], { stdio: "ignore" })
+  spawnSync("tmux", ["set-option", "-t", sessionName, "status-left", "#[fg=#a6e3a1,bold] #{window_name} #[fg=#6c7086]│ "], { stdio: "ignore" })
+  spawnSync("tmux", ["set-option", "-t", sessionName, "status-left-length", "30"], { stdio: "ignore" })
   spawnSync("tmux", ["set-option", "-t", sessionName, "status-right-length", "120"], { stdio: "ignore" })
-  spawnSync("tmux", ["set-option", "-t", sessionName, "status-right", "#[fg=#89b4fa]Ctrl+K#[fg=#6c7086] cmd  #[fg=#89b4fa]Ctrl+T#[fg=#6c7086] terminal  #[fg=#89b4fa]Ctrl+Q#[fg=#6c7086] detach  #[fg=#89b4fa]Ctrl+C#[fg=#6c7086] cancel"], { stdio: "ignore" })
+  spawnSync("tmux", ["set-option", "-t", sessionName, "status-right", "#[fg=#89b4fa]Ctrl+T#[fg=#6c7086] terminal  #[fg=#89b4fa]Ctrl+O#[fg=#6c7086] toggle focus  #[fg=#89b4fa]Ctrl+K#[fg=#6c7086] cmd  #[fg=#89b4fa]Ctrl+Q#[fg=#6c7086] detach"], { stdio: "ignore" })
+
+  // Set terminal title to window name
+  spawnSync("tmux", ["set-option", "-t", sessionName, "set-titles", "on"], { stdio: "ignore" })
+  spawnSync("tmux", ["set-option", "-t", sessionName, "set-titles-string", "#{window_name}"], { stdio: "ignore" })
 
   // Exit alternate screen buffer (TUI uses this)
   process.stdout.write("\x1b[?1049l")
@@ -553,8 +577,12 @@ export function attachSessionSync(sessionName: string): void {
   spawnSync("tmux", ["unbind-key", "-n", "C-q"], { stdio: "ignore" })
   spawnSync("tmux", ["unbind-key", "-n", "C-k"], { stdio: "ignore" })
   spawnSync("tmux", ["unbind-key", "-n", "C-t"], { stdio: "ignore" })
+  spawnSync("tmux", ["unbind-key", "-n", "C-o"], { stdio: "ignore" })
 
   // Clear screen and re-enter alternate buffer for TUI
   process.stdout.write("\x1b[2J\x1b[H")
   process.stdout.write("\x1b[?1049h")
+
+  // Restore terminal title to "Agent View"
+  process.stdout.write("\x1b]0;Agent View\x07")
 }
