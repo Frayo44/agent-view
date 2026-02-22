@@ -125,8 +125,8 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
 
       if (store.leader && evt.name) {
         setImmediate(() => {
-          if (focus && renderer.currentFocusedRenderable === focus) {
-            focus.focus()
+          if (focus && !focus.isDestroyed && renderer.currentFocusedRenderable === focus) {
+            try { focus.focus() } catch {}
           }
           setLeader(false)
         })
