@@ -164,10 +164,19 @@ export function DialogFork(props: DialogForkProps) {
   }
 
   useKeyboard((evt) => {
+    // Block all interaction while forking
+    if (forking()) {
+      evt.preventDefault()
+      return
+    }
+
     // Enter to fork (only if eligible)
     if (evt.name === "return" && !evt.shift) {
       evt.preventDefault()
       if (canForkSession() && !checkingForkEligibility()) {
+        // Blur inputs before forking
+        titleInputRef?.blur()
+        branchInputRef?.blur()
         handleFork()
       }
       return
@@ -239,17 +248,17 @@ export function DialogFork(props: DialogForkProps) {
         <text fg={focusedField() === "title" ? theme.primary : theme.textMuted}>
           Fork Title
         </text>
-        <box onMouseUp={() => setFocusedField("title")}>
+        <box onMouseUp={() => !forking() && setFocusedField("title")}>
           <input
             value={title()}
             onInput={setTitle}
-            focusedBackgroundColor={theme.backgroundElement}
+            focusedBackgroundColor={forking() ? theme.background : theme.backgroundElement}
             cursorColor={theme.primary}
-            focusedTextColor={theme.text}
+            focusedTextColor={forking() ? theme.textMuted : theme.text}
             ref={(r) => {
               titleInputRef = r
               setTimeout(() => {
-                if (focusedField() === "title") {
+                if (focusedField() === "title" && !forking()) {
                   titleInputRef?.focus()
                 }
               }, 1)
@@ -283,14 +292,14 @@ export function DialogFork(props: DialogForkProps) {
               <text fg={focusedField() === "branch" ? theme.primary : theme.textMuted}>
                 Branch name
               </text>
-              <box onMouseUp={() => setFocusedField("branch")}>
+              <box onMouseUp={() => !forking() && setFocusedField("branch")}>
                 <input
                   placeholder="auto-generated from title if empty"
                   value={worktreeBranch()}
-                  onInput={setWorktreeBranch}
-                  focusedBackgroundColor={theme.backgroundElement}
+                  onInput={(v) => !forking() && setWorktreeBranch(v)}
+                  focusedBackgroundColor={forking() ? theme.background : theme.backgroundElement}
                   cursorColor={theme.primary}
-                  focusedTextColor={theme.text}
+                  focusedTextColor={forking() ? theme.textMuted : theme.text}
                   ref={(r) => {
                     branchInputRef = r
                   }}

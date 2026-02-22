@@ -325,6 +325,24 @@ export async function listSessions(): Promise<string[]> {
   }
 }
 
+/**
+ * Get an environment variable from a tmux session
+ */
+export async function getSessionEnvironment(sessionName: string, varName: string): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(tmuxCmd(`show-environment -t "${sessionName}" ${varName}`))
+    // Output format: "VAR_NAME=value" or "-VAR_NAME" if unset
+    const line = stdout.trim()
+    if (line.startsWith("-") || !line.includes("=")) {
+      return null
+    }
+    const value = line.substring(line.indexOf("=") + 1)
+    return value || null
+  } catch {
+    return null
+  }
+}
+
 export function insideTmux(): boolean {
   return !!process.env.TMUX
 }

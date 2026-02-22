@@ -1,6 +1,6 @@
 {
   "name": "agent-orchestrator",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "OpenTUI-based Agent Management",
   "type": "module",
   "main": "dist/index.js",
