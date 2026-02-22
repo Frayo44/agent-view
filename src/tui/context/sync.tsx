@@ -102,8 +102,8 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           refresh()
           return session
         },
-        async delete(id: string): Promise<void> {
-          await manager.delete(id)
+        async delete(id: string, options?: { deleteWorktree?: boolean }): Promise<void> {
+          await manager.delete(id, options)
           refresh()
         },
         async restart(id: string): Promise<Session> {

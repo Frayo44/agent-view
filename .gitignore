@@ -32,3 +32,6 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# Git Worktrees
+.worktrees/

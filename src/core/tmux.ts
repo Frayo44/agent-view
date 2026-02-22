@@ -231,13 +231,25 @@ export async function killSession(name: string): Promise<void> {
 }
 
 export async function sendKeys(name: string, keys: string): Promise<void> {
-  // Escape special characters for tmux
-  const escaped = keys
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\$/g, "\\$")
+  const { spawnSync } = require("child_process")
 
-  await execAsync(tmuxCmd(`send-keys -t "${name}" "${escaped}" Enter`))
+  // Send text literally (no key name interpretation)
+  const textArgs = tmuxSpawnArgs("send-keys", "-t", name, "-l", keys)
+  const textResult = spawnSync("tmux", textArgs, { stdio: "pipe" })
+  if (textResult.status !== 0) {
+    const stderr = textResult.stderr?.toString() || ""
+    throw new Error(`send-keys (text) failed: ${stderr}`)
+  }
+
+  // Small delay then send Enter separately
+  spawnSync("sleep", ["0.1"])
+
+  const enterArgs = tmuxSpawnArgs("send-keys", "-t", name, "Enter")
+  const enterResult = spawnSync("tmux", enterArgs, { stdio: "pipe" })
+  if (enterResult.status !== 0) {
+    const stderr = enterResult.stderr?.toString() || ""
+    throw new Error(`send-keys (enter) failed: ${stderr}`)
+  }
 }
 
 /**
