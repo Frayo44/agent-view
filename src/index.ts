@@ -4,6 +4,7 @@
  */
 
 import { tui } from "./tui/app"
+import pkg from "../package.json"
 
 async function main() {
   const args = process.argv.slice(2)
@@ -11,10 +12,10 @@ async function main() {
   // Simple CLI argument handling
   if (args.includes("--help") || args.includes("-h")) {
     console.log(`
-Agent Orchestrator - Terminal Agent Management
+Agent View - Terminal Agent Management
 
 Usage:
-  agent-orchestrator [options]
+  agent-view [options]
 
 Options:
   --help, -h     Show this help message
@@ -32,7 +33,7 @@ Keyboard Shortcuts (in TUI):
   }
 
   if (args.includes("--version") || args.includes("-v")) {
-    console.log("agent-orchestrator v1.0.0")
+    console.log(`agent-view v${pkg.version}`)
     process.exit(0)
   }
 
