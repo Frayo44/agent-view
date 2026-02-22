@@ -7,6 +7,7 @@ import { getStorage } from "./storage"
 import type { Session, SessionCreateOptions, SessionForkOptions, SessionStatus, Tool } from "./types"
 import { getToolCommand } from "./types"
 import * as tmux from "./tmux"
+import { removeWorktree } from "./git"
 import { randomUUID } from "crypto"
 import path from "path"
 import fs from "fs"
@@ -266,12 +267,20 @@ export class SessionManager {
     return await canFork(session.projectPath)
   }
 
-  async delete(sessionId: string): Promise<void> {
+  async delete(sessionId: string, options?: { deleteWorktree?: boolean }): Promise<void> {
     const storage = getStorage()
     const session = storage.getSession(sessionId)
 
     if (session?.tmuxSession) {
       await tmux.killSession(session.tmuxSession)
+    }
+
+    if (options?.deleteWorktree && session?.worktreePath && session?.worktreeRepo) {
+      try {
+        await removeWorktree(session.worktreeRepo, session.worktreePath, true)
+      } catch {
+        // Worktree may already be removed
+      }
     }
 
     storage.deleteSession(sessionId)
