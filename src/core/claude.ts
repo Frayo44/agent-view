@@ -1,31 +1,71 @@
 /**
  * Claude-specific functionality
- * Session ID detection and fork command building
+ *
+ * This module handles:
+ * - Session ID detection and tracking
+ * - Fork command building
+ * - Session file management for worktree forks
  */
 
 import { homedir } from "os"
 import path from "path"
-import { readdirSync, statSync, readFileSync, existsSync } from "fs"
+import { readdirSync, statSync, readFileSync, existsSync, mkdirSync, copyFileSync } from "fs"
+import type { ClaudeOptions } from "./types"
 
-// UUID regex pattern (v4 format)
+// =============================================================================
+// Constants
+// =============================================================================
+
+/** UUID v4 regex pattern for validating session IDs */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+/** Time window for considering a session "active" (5 minutes) */
+const ACTIVE_SESSION_WINDOW_MS = 5 * 60 * 1000
+
+// =============================================================================
+// Path Utilities
+// =============================================================================
+
+/**
+ * Get the Claude configuration directory (~/.claude)
+ */
 export function getClaudeConfigDir(): string {
   return path.join(homedir(), ".claude")
 }
 
 /**
- * Convert a project path to Claude's directory format
- * Non-alphanumeric characters are replaced with hyphens
- * Example: /Users/foo/project -> -Users-foo-project
+ * Convert a project path to Claude's directory format.
+ * Non-alphanumeric characters are replaced with hyphens.
+ *
+ * @example
+ * convertToClaudeDirName("/Users/foo/project") // "-Users-foo-project"
  */
 export function convertToClaudeDirName(projectPath: string): string {
-  // Replace all non-alphanumeric with hyphens (including leading /)
   return projectPath.replace(/[^a-zA-Z0-9]/g, "-")
 }
 
 /**
- * Check if a filename is a UUID-formatted session file
+ * Get the full path to a Claude session file
+ */
+export function getSessionFilePath(projectPath: string, sessionId: string): string {
+  const configDir = getClaudeConfigDir()
+  const projectDirName = convertToClaudeDirName(projectPath)
+  return path.join(configDir, "projects", projectDirName, `${sessionId}.jsonl`)
+}
+
+/**
+ * Check if a session file exists
+ */
+export function sessionFileExists(projectPath: string, sessionId: string): boolean {
+  return existsSync(getSessionFilePath(projectPath, sessionId))
+}
+
+// =============================================================================
+// Session Detection
+// =============================================================================
+
+/**
+ * Check if a filename is a valid UUID-formatted session file
  */
 function isUuidSessionFile(filename: string): boolean {
   if (!filename.endsWith(".jsonl")) return false
@@ -36,25 +76,11 @@ function isUuidSessionFile(filename: string): boolean {
 }
 
 /**
- * Find the most recently active Claude session ID for a project
- * Returns null if no active session found
- */
-export function getClaudeSessionID(projectPath: string): string | null {
-  const configDir = getClaudeConfigDir()
-  const projectDirName = convertToClaudeDirName(projectPath)
-  const projectConfigDir = path.join(configDir, "projects", projectDirName)
-
-  const sessionId = findActiveSessionID(projectConfigDir)
-  if (sessionId) {
-    return sessionId
-  }
-
-  return getLastSessionIdFromConfig(projectPath)
-}
-
-/**
- * Find the most recently modified session file in a directory
- * Only returns sessions modified within the last 5 minutes
+ * Find the most recently modified session file in a directory.
+ * Only returns sessions modified within the active window (5 minutes).
+ *
+ * WARNING: This returns the most recent session, not necessarily the one
+ * you want. Prefer using stored session IDs from toolData when available.
  */
 function findActiveSessionID(configDir: string): string | null {
   if (!existsSync(configDir)) {
@@ -63,7 +89,7 @@ function findActiveSessionID(configDir: string): string | null {
 
   try {
     const files = readdirSync(configDir)
-    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000)
+    const cutoffTime = Date.now() - ACTIVE_SESSION_WINDOW_MS
 
     let mostRecent: { sessionId: string; mtime: number } | null = null
 
@@ -74,7 +100,7 @@ function findActiveSessionID(configDir: string): string | null {
       try {
         const stats = statSync(filePath)
         const mtime = stats.mtimeMs
-        if (mtime < fiveMinutesAgo) continue
+        if (mtime < cutoffTime) continue
 
         if (!mostRecent || mtime > mostRecent.mtime) {
           mostRecent = {
@@ -123,7 +149,35 @@ function getLastSessionIdFromConfig(projectPath: string): string | null {
 }
 
 /**
- * Check if a session can be forked (has an active Claude session)
+ * Find the most recently active Claude session ID for a project.
+ *
+ * WARNING: This uses file system detection and returns the most recent session,
+ * which may not be the session you want when multiple sessions exist for the
+ * same project. Prefer using stored session IDs from session.toolData when
+ * forking a specific session.
+ *
+ * @returns Session ID or null if no active session found
+ */
+export function getClaudeSessionID(projectPath: string): string | null {
+  const configDir = getClaudeConfigDir()
+  const projectDirName = convertToClaudeDirName(projectPath)
+  const projectConfigDir = path.join(configDir, "projects", projectDirName)
+
+  const sessionId = findActiveSessionID(projectConfigDir)
+  if (sessionId) {
+    return sessionId
+  }
+
+  return getLastSessionIdFromConfig(projectPath)
+}
+
+// =============================================================================
+// Fork Operations
+// =============================================================================
+
+/**
+ * Check if a session can be forked (has an active Claude session).
+ * This is a basic check - prefer checking session.toolData.claudeSessionId directly.
  */
 export async function canFork(projectPath: string): Promise<boolean> {
   const sessionId = getClaudeSessionID(projectPath)
@@ -131,38 +185,97 @@ export async function canFork(projectPath: string): Promise<boolean> {
 }
 
 /**
- * Build the fork command for Claude with --resume and --fork-session flags
+ * Options for building a fork command
  */
-export function buildForkCommand(options: {
+export interface ForkCommandOptions {
+  /** Working directory for the forked session */
   projectPath: string
+  /** Claude session ID to fork from (the parent conversation) */
   parentSessionId: string
+  /** New session ID for the forked session (must be pre-generated) */
   newSessionId: string
-}): string {
-  // Escape single quotes for shell
+}
+
+/**
+ * Build the shell command to fork a Claude session.
+ *
+ * The command:
+ * 1. Changes to the project directory
+ * 2. Sets CLAUDE_SESSION_ID in tmux environment for tracking
+ * 3. Runs claude with --session-id, --resume, and --fork-session flags
+ *
+ * IMPORTANT: The newSessionId must be the same UUID that is stored in
+ * the session's toolData. If a different UUID is used, the fork will
+ * fail with "No conversation found" because Claude won't find a session
+ * matching the stored ID.
+ */
+export function buildForkCommand(options: ForkCommandOptions): string {
+  // Escape single quotes for shell safety
   const escapedPath = options.projectPath.replace(/'/g, "'\\''")
 
-  return `cd '${escapedPath}' && ` +
-    `session_id=$(uuidgen | tr '[:upper:]' '[:lower:]'); ` +
-    `tmux set-environment CLAUDE_SESSION_ID "$session_id"; ` +
-    `claude --session-id "$session_id" --resume ${options.parentSessionId} --fork-session`
+  // Build the command:
+  // - cd to project directory
+  // - set tmux env var for session tracking
+  // - run claude with fork flags using the PRE-GENERATED session ID
+  return (
+    `cd '${escapedPath}' && ` +
+    `tmux set-environment CLAUDE_SESSION_ID "${options.newSessionId}"; ` +
+    `claude --session-id "${options.newSessionId}" --resume ${options.parentSessionId} --fork-session`
+  )
 }
 
 /**
- * Get session info for display purposes
+ * Copy a Claude session file from one project to another.
+ *
+ * This is required when forking to a git worktree because Claude stores
+ * sessions per-project-path. When the worktree has a different path,
+ * Claude won't find the parent session unless we copy it.
+ *
+ * @param sessionId - The Claude session ID to copy
+ * @param sourceProjectPath - Original project path where session exists
+ * @param targetProjectPath - Worktree path where session should be copied
+ * @returns true if copy succeeded, false otherwise
  */
-export interface ClaudeSessionInfo {
-  sessionId: string
-  projectPath: string
-  lastModified: Date
+export function copySessionToProject(
+  sessionId: string,
+  sourceProjectPath: string,
+  targetProjectPath: string
+): boolean {
+  const configDir = getClaudeConfigDir()
+  const sourceDirName = convertToClaudeDirName(sourceProjectPath)
+  const targetDirName = convertToClaudeDirName(targetProjectPath)
+
+  const sourceFile = path.join(configDir, "projects", sourceDirName, `${sessionId}.jsonl`)
+  const targetDir = path.join(configDir, "projects", targetDirName)
+  const targetFile = path.join(targetDir, `${sessionId}.jsonl`)
+
+  if (!existsSync(sourceFile)) {
+    return false
+  }
+
+  try {
+    // Create target directory if it doesn't exist
+    if (!existsSync(targetDir)) {
+      mkdirSync(targetDir, { recursive: true })
+    }
+
+    // Copy the session file
+    copyFileSync(sourceFile, targetFile)
+    return true
+  } catch {
+    return false
+  }
 }
 
-import type { ClaudeOptions } from "./types"
+// =============================================================================
+// Command Building
+// =============================================================================
 
 /**
- * Build the Claude command based on options
- * - "new" mode: returns plain "claude"
- * - "resume" mode: returns "claude --resume" (Claude will prompt for session selection)
- * - skipPermissions: adds "--dangerously-skip-permissions" flag
+ * Build the Claude command based on options.
+ *
+ * @param options - Claude session options
+ * @returns Command string (e.g., "claude", "claude --resume", etc.)
  */
 export function buildClaudeCommand(options?: ClaudeOptions): string {
   const parts: string[] = ["claude"]
@@ -178,13 +291,27 @@ export function buildClaudeCommand(options?: ClaudeOptions): string {
   return parts.join(" ")
 }
 
+// =============================================================================
+// Session Info
+// =============================================================================
+
+/**
+ * Session information for display purposes
+ */
+export interface ClaudeSessionInfo {
+  sessionId: string
+  projectPath: string
+  lastModified: Date
+}
+
+/**
+ * Get session info for display purposes
+ */
 export function getClaudeSessionInfo(projectPath: string): ClaudeSessionInfo | null {
   const sessionId = getClaudeSessionID(projectPath)
   if (!sessionId) return null
 
-  const configDir = getClaudeConfigDir()
-  const projectDirName = convertToClaudeDirName(projectPath)
-  const sessionFile = path.join(configDir, "projects", projectDirName, `${sessionId}.jsonl`)
+  const sessionFile = getSessionFilePath(projectPath, sessionId)
 
   try {
     if (existsSync(sessionFile)) {

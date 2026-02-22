@@ -466,6 +466,7 @@ export function Home() {
 
     // F (Shift+f) to fork with options dialog
     if (evt.name === "f" && evt.shift) {
+      evt.preventDefault()
       const session = selectedSession()
       if (session) {
         if (session.tool !== "claude") {
@@ -474,6 +475,7 @@ export function Home() {
         }
         dialog.push(() => <DialogFork session={session} />)
       }
+      return
     }
 
     // s to open shortcuts dialog

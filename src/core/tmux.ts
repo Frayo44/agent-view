@@ -1,10 +1,16 @@
 /**
  * Tmux session management
  * Based on agent-view's tmux package with session caching
+ *
+ * Uses an isolated tmux server (separate socket + custom config)
+ * to avoid conflicts with the user's tmux configuration.
  */
 
 import { spawn, exec } from "child_process"
 import { promisify } from "util"
+import path from "path"
+import os from "os"
+import fs from "fs"
 
 // Lazy load node-pty to avoid import errors in test environments
 let pty: typeof import("node-pty") | null = null
@@ -18,6 +24,60 @@ async function getPty() {
 const execAsync = promisify(exec)
 
 export const SESSION_PREFIX = "agentorch_"
+
+// Signal file for command palette request
+const COMMAND_PALETTE_SIGNAL = "/tmp/agent-view-cmd-palette"
+
+// --- Isolated tmux server configuration ---
+// All agent-view sessions run on a dedicated tmux socket with a custom config,
+// so we never load or interfere with the user's ~/.tmux.conf.
+// The config is defined in src/core/tmux.conf and inlined at build time.
+import TMUX_CONF from "./tmux.conf" with { type: "text" }
+
+const TMUX_SOCKET = "agent-view"
+const CONFIG_DIR = path.join(os.homedir(), ".agent-view")
+const CONFIG_PATH = path.join(CONFIG_DIR, "tmux.conf")
+
+let configWritten = false
+
+/**
+ * Ensure the custom tmux config file exists and is up to date
+ */
+function ensureConfig(): void {
+  if (configWritten) return
+  try {
+    if (!fs.existsSync(CONFIG_DIR)) {
+      fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 })
+    }
+    let needsWrite = true
+    try {
+      needsWrite = fs.readFileSync(CONFIG_PATH, "utf-8") !== TMUX_CONF
+    } catch {
+      // File doesn't exist
+    }
+    if (needsWrite) {
+      fs.writeFileSync(CONFIG_PATH, TMUX_CONF, { mode: 0o600 })
+    }
+  } finally {
+    configWritten = true
+  }
+}
+
+/**
+ * Build a tmux command string that targets our isolated server
+ */
+function tmuxCmd(subcmd: string): string {
+  ensureConfig()
+  return `tmux -L ${TMUX_SOCKET} -f "${CONFIG_PATH}" ${subcmd}`
+}
+
+/**
+ * Build tmux spawn arguments that target our isolated server
+ */
+function tmuxSpawnArgs(...args: string[]): string[] {
+  ensureConfig()
+  return ["-L", TMUX_SOCKET, "-f", CONFIG_PATH, ...args]
+}
 
 // Session cache - reduces subprocess spawns
 interface SessionCache {
@@ -48,7 +108,7 @@ export async function isTmuxAvailable(): Promise<boolean> {
 export async function refreshSessionCache(): Promise<void> {
   try {
     const { stdout } = await execAsync(
-      'tmux list-windows -a -F "#{session_name}\t#{window_activity}"'
+      tmuxCmd('list-windows -a -F "#{session_name}\t#{window_activity}"')
     )
 
     const newCache = new Map<string, number>()
@@ -129,20 +189,19 @@ export async function createSession(options: {
 }): Promise<void> {
   const cwd = options.cwd || process.env.HOME || "/tmp"
 
-  const createCmd = `tmux new-session -d -s "${options.name}" -c "${cwd}"`
-  await execAsync(createCmd)
+  await execAsync(tmuxCmd(`new-session -d -s "${options.name}" -c "${cwd}"`))
   registerSessionInCache(options.name)
 
   // Set window title if provided and prevent automatic renaming
   if (options.windowTitle) {
-    await execAsync(`tmux rename-window -t "${options.name}" "${options.windowTitle}"`)
-    await execAsync(`tmux set-option -t "${options.name}" automatic-rename off`)
-    await execAsync(`tmux set-option -t "${options.name}" allow-rename off`)
+    await execAsync(tmuxCmd(`rename-window -t "${options.name}" "${options.windowTitle}"`))
+    await execAsync(tmuxCmd(`set-option -t "${options.name}" automatic-rename off`))
+    await execAsync(tmuxCmd(`set-option -t "${options.name}" allow-rename off`))
   }
 
   const envVars = options.env || {}
   for (const [key, value] of Object.entries(envVars)) {
-    await execAsync(`tmux set-environment -t "${options.name}" ${key} "${value}"`)
+    await execAsync(tmuxCmd(`set-environment -t "${options.name}" ${key} "${value}"`))
   }
 
   if (options.command) {
@@ -158,13 +217,13 @@ export async function createSession(options: {
     }
 
     await sendKeys(options.name, cmdToSend)
-    await execAsync(`tmux send-keys -t "${options.name}" Enter`)
+    await execAsync(tmuxCmd(`send-keys -t "${options.name}" Enter`))
   }
 }
 
 export async function killSession(name: string): Promise<void> {
   try {
-    await execAsync(`tmux kill-session -t "${name}"`)
+    await execAsync(tmuxCmd(`kill-session -t "${name}"`))
     sessionCache.data.delete(name)
   } catch {
     // Session might not exist
@@ -178,14 +237,14 @@ export async function sendKeys(name: string, keys: string): Promise<void> {
     .replace(/"/g, '\\"')
     .replace(/\$/g, "\\$")
 
-  await execAsync(`tmux send-keys -t "${name}" "${escaped}" Enter`)
+  await execAsync(tmuxCmd(`send-keys -t "${name}" "${escaped}" Enter`))
 }
 
 /**
  * Send raw keys without Enter
  */
 export async function sendRawKeys(name: string, keys: string): Promise<void> {
-  await execAsync(`tmux send-keys -t "${name}" "${keys}"`)
+  await execAsync(tmuxCmd(`send-keys -t "${name}" "${keys}"`))
 }
 
 export async function capturePane(
@@ -213,7 +272,7 @@ export async function capturePane(
   }
 
   try {
-    const { stdout } = await execAsync(`tmux ${args.join(" ")}`, {
+    const { stdout } = await execAsync(tmuxCmd(args.join(" ")), {
       timeout: 5000
     })
     return stdout
@@ -227,21 +286,21 @@ export async function capturePane(
 
 export async function getPaneDimensions(name: string): Promise<{ width: number; height: number }> {
   const { stdout } = await execAsync(
-    `tmux display-message -t "${name}" -p "#{pane_width}\t#{pane_height}"`
+    tmuxCmd(`display-message -t "${name}" -p "#{pane_width}\t#{pane_height}"`)
   )
   const [width, height] = stdout.trim().split("\t").map(Number)
   return { width: width || 80, height: height || 24 }
 }
 
 export async function resizePane(name: string, width: number, height: number): Promise<void> {
-  await execAsync(`tmux resize-pane -t "${name}" -x ${width} -y ${height}`)
+  await execAsync(tmuxCmd(`resize-pane -t "${name}" -x ${width} -y ${height}`))
 }
 
 /**
  * Attach to a tmux session (replaces current terminal)
  */
 export function attachSession(name: string): void {
-  const child = spawn("tmux", ["attach-session", "-t", name], {
+  const child = spawn("tmux", tmuxSpawnArgs("attach-session", "-t", name), {
     stdio: "inherit",
     env: process.env
   })
@@ -256,13 +315,31 @@ export function attachSession(name: string): void {
  */
 export async function listSessions(): Promise<string[]> {
   try {
-    const { stdout } = await execAsync("tmux list-sessions -F #{session_name}")
+    const { stdout } = await execAsync(tmuxCmd("list-sessions -F #{session_name}"))
     return stdout
       .trim()
       .split("\n")
       .filter((name) => name.startsWith(SESSION_PREFIX))
   } catch {
     return []
+  }
+}
+
+/**
+ * Get an environment variable from a tmux session
+ */
+export async function getSessionEnvironment(sessionName: string, varName: string): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(tmuxCmd(`show-environment -t "${sessionName}" ${varName}`))
+    // Output format: "VAR_NAME=value" or "-VAR_NAME" if unset
+    const line = stdout.trim()
+    if (line.startsWith("-") || !line.includes("=")) {
+      return null
+    }
+    const value = line.substring(line.indexOf("=") + 1)
+    return value || null
+  } catch {
+    return null
   }
 }
 
@@ -430,7 +507,7 @@ export function parseToolStatus(output: string, tool?: string): ToolStatus {
 export async function attachWithPty(sessionName: string): Promise<void> {
   const ptyModule = await getPty()
   return new Promise((resolve) => {
-    const ptyProcess = ptyModule.spawn("tmux", ["attach-session", "-t", sessionName], {
+    const ptyProcess = ptyModule.spawn("tmux", tmuxSpawnArgs("attach-session", "-t", sessionName), {
       name: "xterm-256color",
       cols: process.stdout.columns || 80,
       rows: process.stdout.rows || 24,
@@ -496,14 +573,10 @@ export async function attachWithPty(sessionName: string): Promise<void> {
   })
 }
 
-// Signal file for command palette request
-const COMMAND_PALETTE_SIGNAL = "/tmp/agent-view-cmd-palette"
-
 /**
  * Check if command palette was requested during attached session
  */
 export function wasCommandPaletteRequested(): boolean {
-  const fs = require("fs")
   try {
     if (fs.existsSync(COMMAND_PALETTE_SIGNAL)) {
       fs.unlinkSync(COMMAND_PALETTE_SIGNAL)
@@ -517,11 +590,11 @@ export function wasCommandPaletteRequested(): boolean {
 
 /**
  * Attach to a tmux session with Ctrl+Q to detach
- * Configures tmux to use Ctrl+Q as detach key, then uses spawnSync
+ * Keybindings and status bar are configured via the custom tmux.conf,
+ * so we just need to attach/detach and manage the screen buffer.
  */
 export function attachSessionSync(sessionName: string): void {
   const { spawnSync } = require("child_process")
-  const fs = require("fs")
 
   try {
     fs.unlinkSync(COMMAND_PALETTE_SIGNAL)
@@ -529,55 +602,16 @@ export function attachSessionSync(sessionName: string): void {
     // Ignore if doesn't exist
   }
 
-  // Bind Ctrl+Q to detach in this session (C-q = ASCII 17)
-  spawnSync("tmux", ["bind-key", "-n", "C-q", "detach-client"], { stdio: "ignore" })
-
-  // Bind Ctrl+K to create signal file and detach (opens command palette on return)
-  spawnSync("tmux", ["bind-key", "-n", "C-k", "run-shell", `touch ${COMMAND_PALETTE_SIGNAL}`, "\\;", "detach-client"], { stdio: "ignore" })
-
-  // Bind Ctrl+T to toggle terminal pane
-  // - If 1 pane: create split for terminal
-  // - If 2+ panes: kill the terminal pane (pane 1)
-  spawnSync("tmux", [
-    "bind-key", "-n", "C-t",
-    "if-shell",
-    "[ $(tmux display -p '#{window_panes}') -eq 1 ]",
-    "split-window -v",
-    "kill-pane -t :.1"
-  ], { stdio: "ignore" })
-
-  // Bind Ctrl+O to cycle between panes
-  spawnSync("tmux", ["bind-key", "-n", "C-o", "select-pane", "-t", ":.+"], { stdio: "ignore" })
-
-  // Configure status bar with shortcuts
-  spawnSync("tmux", ["set-option", "-t", sessionName, "status", "on"], { stdio: "ignore" })
-  spawnSync("tmux", ["set-option", "-t", sessionName, "status-position", "bottom"], { stdio: "ignore" })
-  spawnSync("tmux", ["set-option", "-t", sessionName, "status-style", "bg=#1e1e2e,fg=#cdd6f4"], { stdio: "ignore" })
-  spawnSync("tmux", ["set-option", "-t", sessionName, "status-left", "#[fg=#a6e3a1,bold] #{window_name} #[fg=#6c7086]│ "], { stdio: "ignore" })
-  spawnSync("tmux", ["set-option", "-t", sessionName, "status-left-length", "30"], { stdio: "ignore" })
-  spawnSync("tmux", ["set-option", "-t", sessionName, "status-right-length", "120"], { stdio: "ignore" })
-  spawnSync("tmux", ["set-option", "-t", sessionName, "status-right", "#[fg=#89b4fa]Ctrl+T#[fg=#6c7086] terminal  #[fg=#89b4fa]Ctrl+O#[fg=#6c7086] toggle focus  #[fg=#89b4fa]Ctrl+K#[fg=#6c7086] cmd  #[fg=#89b4fa]Ctrl+Q#[fg=#6c7086] detach"], { stdio: "ignore" })
-
-  // Set terminal title to window name
-  spawnSync("tmux", ["set-option", "-t", sessionName, "set-titles", "on"], { stdio: "ignore" })
-  spawnSync("tmux", ["set-option", "-t", sessionName, "set-titles-string", "#{window_name}"], { stdio: "ignore" })
-
   // Exit alternate screen buffer (TUI uses this)
   process.stdout.write("\x1b[?1049l")
   process.stdout.write("\x1b[2J\x1b[H")
   process.stdout.write("\x1b[?25h")
 
   // Attach to tmux - this blocks until user detaches (Ctrl+Q or Ctrl+B d)
-  spawnSync("tmux", ["attach-session", "-t", sessionName], {
+  spawnSync("tmux", tmuxSpawnArgs("attach-session", "-t", sessionName), {
     stdio: "inherit",
     env: process.env
   })
-
-  // Unbind session-specific keys (restore default behavior)
-  spawnSync("tmux", ["unbind-key", "-n", "C-q"], { stdio: "ignore" })
-  spawnSync("tmux", ["unbind-key", "-n", "C-k"], { stdio: "ignore" })
-  spawnSync("tmux", ["unbind-key", "-n", "C-t"], { stdio: "ignore" })
-  spawnSync("tmux", ["unbind-key", "-n", "C-o"], { stdio: "ignore" })
 
   // Clear screen and re-enter alternate buffer for TUI
   process.stdout.write("\x1b[2J\x1b[H")

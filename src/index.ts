@@ -5,6 +5,7 @@
 
 import { parseArgs, printHelp } from "./cli/args"
 import type { CLICommand } from "./cli/args"
+import pkg from "../package.json"
 
 async function executeHeadlessCommand(command: CLICommand): Promise<void> {
   // Lazy import to avoid loading TUI dependencies for headless commands
@@ -57,7 +58,6 @@ async function main() {
   }
 
   if (command.type === "version") {
-    const pkg = await import("../package.json")
     console.log(`agent-view v${pkg.version}`)
     process.exit(0)
   }
