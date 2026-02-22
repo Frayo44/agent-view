@@ -231,13 +231,24 @@ export async function killSession(name: string): Promise<void> {
 }
 
 export async function sendKeys(name: string, keys: string): Promise<void> {
-  // Use spawnSync with explicit args to avoid shell escaping issues
   const { spawnSync } = require("child_process")
-  const args = tmuxSpawnArgs("send-keys", "-t", name, keys, "Enter")
-  const result = spawnSync("tmux", args, { stdio: "pipe" })
-  if (result.status !== 0) {
-    const stderr = result.stderr?.toString() || ""
-    throw new Error(`send-keys failed: ${stderr}`)
+
+  // Send text literally (no key name interpretation)
+  const textArgs = tmuxSpawnArgs("send-keys", "-t", name, "-l", keys)
+  const textResult = spawnSync("tmux", textArgs, { stdio: "pipe" })
+  if (textResult.status !== 0) {
+    const stderr = textResult.stderr?.toString() || ""
+    throw new Error(`send-keys (text) failed: ${stderr}`)
+  }
+
+  // Small delay then send Enter separately
+  spawnSync("sleep", ["0.1"])
+
+  const enterArgs = tmuxSpawnArgs("send-keys", "-t", name, "Enter")
+  const enterResult = spawnSync("tmux", enterArgs, { stdio: "pipe" })
+  if (enterResult.status !== 0) {
+    const stderr = enterResult.stderr?.toString() || ""
+    throw new Error(`send-keys (enter) failed: ${stderr}`)
   }
 }
 
