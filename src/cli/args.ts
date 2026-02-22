@@ -15,6 +15,7 @@ export type CLICommand =
   | { type: "attach"; id: string }
   | { type: "status"; id: string }
   | { type: "info"; id: string; json: boolean }
+  | { type: "send"; id: string; message: string }
 
 export interface NewOptions {
   path: string
@@ -139,6 +140,23 @@ export function parseArgs(argv: string[]): CLICommand {
     return { type: "status", id }
   }
 
+  if (getFlag(args, "--send")) {
+    const id = getFlagValue(args, "--send")
+    if (!id) {
+      process.stderr.write("Error: --send requires a session ID or title\n")
+      process.exit(2)
+    }
+    // Everything after the ID is the message
+    const idIdx = args.indexOf(id)
+    const remaining = args.slice(idIdx + 1).filter(a => !a.startsWith("--"))
+    const message = remaining.join(" ")
+    if (!message) {
+      process.stderr.write("Error: --send requires a message\n")
+      process.exit(2)
+    }
+    return { type: "send", id, message }
+  }
+
   if (getFlag(args, "--info")) {
     const id = getFlagValue(args, "--info")
     if (!id) {
@@ -167,6 +185,7 @@ Usage:
   av --attach <id>                Attach to a session
   av --status <id>                Get session status
   av --info <id> [--json]         Get session details
+  av --send <id> <message>        Send instructions to a running session
 
 TUI Options:
   --light                         Use light mode theme

@@ -328,6 +328,34 @@ export async function cmdStatus(id: string): Promise<void> {
   }
 }
 
+export async function cmdSend(id: string, message: string): Promise<void> {
+  const resolvedId = resolveSessionId(id)
+  if (!resolvedId) {
+    process.stderr.write(`Error: Session '${id}' not found\n`)
+    process.exit(3)
+  }
+
+  const session = getStorage().getSession(resolvedId)
+  if (!session) {
+    process.stderr.write(`Error: Session '${id}' not found\n`)
+    process.exit(3)
+  }
+
+  if (!session.tmuxSession) {
+    process.stderr.write(`Error: Session '${session.title}' has no tmux session\n`)
+    process.exit(1)
+  }
+
+  if (session.status === "stopped") {
+    process.stderr.write(`Error: Session '${session.title}' is stopped. Restart it first.\n`)
+    process.exit(1)
+  }
+
+  const manager = new SessionManager()
+  await manager.sendMessage(resolvedId, message)
+  console.log(`Sent to ${session.title}: ${message.length > 80 ? message.slice(0, 80) + "..." : message}`)
+}
+
 export async function cmdInfo(id: string, json: boolean): Promise<void> {
   const resolvedId = resolveSessionId(id)
   if (!resolvedId) {

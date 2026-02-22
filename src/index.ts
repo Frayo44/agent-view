@@ -9,7 +9,7 @@ import pkg from "../package.json"
 
 async function executeHeadlessCommand(command: CLICommand): Promise<void> {
   // Lazy import to avoid loading TUI dependencies for headless commands
-  const { cmdNew, cmdList, cmdDelete, cmdStop, cmdRestart, cmdAttach, cmdStatus, cmdInfo } = await import("./cli/commands")
+  const { cmdNew, cmdList, cmdDelete, cmdStop, cmdRestart, cmdAttach, cmdStatus, cmdInfo, cmdSend } = await import("./cli/commands")
 
   switch (command.type) {
     case "new":
@@ -35,6 +35,9 @@ async function executeHeadlessCommand(command: CLICommand): Promise<void> {
       break
     case "info":
       await cmdInfo(command.id, command.json)
+      break
+    case "send":
+      await cmdSend(command.id, command.message)
       break
   }
 }

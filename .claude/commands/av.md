@@ -36,6 +36,14 @@ av --delete <id-or-title> --force
 av --delete <id-or-title> --worktree --force
 ```
 
+## Send instructions to a running session
+
+```bash
+av --send <id-or-title> Fix the snackbar so it appears above the bottom nav bar
+```
+
+Sends the message as input to the session's tmux pane (types it and presses Enter). Use this to give tasks to running Claude/agent sessions programmatically.
+
 ## Session info
 
 ```bash
