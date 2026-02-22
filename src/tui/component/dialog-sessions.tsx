@@ -61,17 +61,41 @@ export function DialogSessions() {
     const session = sync.session.get(sessionId)
     if (!session) return
 
-    try {
-      await sync.session.delete(sessionId)
-      toast.show({ message: `Deleted ${session.title}`, variant: "info", duration: 2000 })
+    async function doDelete(deleteWorktree: boolean) {
+      try {
+        await sync.session.delete(sessionId, { deleteWorktree })
+        const msg = deleteWorktree
+          ? `Deleted ${session!.title} and worktree`
+          : `Deleted ${session!.title}`
+        toast.show({ message: msg, variant: "info", duration: 2000 })
 
-      // If we deleted the current session, go home
-      if (currentSessionId() === sessionId) {
-        route.navigate({ type: "home" })
+        // If we deleted the current session, go home
+        if (currentSessionId() === sessionId) {
+          route.navigate({ type: "home" })
+        }
+      } catch (err) {
+        toast.error(err as Error)
       }
-    } catch (err) {
-      toast.error(err as Error)
     }
+
+    if (session.worktreePath) {
+      dialog.push(() => (
+        <DialogSelect
+          title={`Delete "${session.title}"?`}
+          options={[
+            { title: "Delete session and worktree", value: "delete-worktree" },
+            { title: "Delete session only", value: "delete-session" },
+          ]}
+          onSelect={async (opt) => {
+            dialog.pop()
+            await doDelete(opt.value === "delete-worktree")
+          }}
+        />
+      ))
+      return
+    }
+
+    await doDelete(false)
   }
 
   async function handleRestart(sessionId: string) {

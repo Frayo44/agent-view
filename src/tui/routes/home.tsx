@@ -9,6 +9,7 @@ import { useTerminalDimensions, useKeyboard, useRenderer } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { useDialog } from "@tui/ui/dialog"
+import { DialogSelect } from "@tui/ui/dialog-select"
 import { useToast } from "@tui/ui/toast"
 import { DialogNew } from "@tui/component/dialog-new"
 import { DialogFork } from "@tui/component/dialog-fork"
@@ -254,6 +255,30 @@ export function Home() {
   }
 
   async function handleDelete(session: Session) {
+    if (session.worktreePath) {
+      dialog.replace(() => (
+        <DialogSelect
+          title={`Delete "${session.title}"?`}
+          options={[
+            { title: "Delete session and worktree", value: "delete-worktree" },
+            { title: "Delete session only", value: "delete-session" },
+          ]}
+          onSelect={async (opt) => {
+            dialog.clear()
+            try {
+              await sync.session.delete(session.id, { deleteWorktree: opt.value === "delete-worktree" })
+              const msg = opt.value === "delete-worktree"
+                ? `Deleted ${session.title} and worktree`
+                : `Deleted ${session.title}`
+              toast.show({ message: msg, variant: "info", duration: 2000 })
+            } catch (err) {
+              toast.error(err as Error)
+            }
+          }}
+        />
+      ))
+      return
+    }
     try {
       await sync.session.delete(session.id)
       toast.show({ message: `Deleted ${session.title}`, variant: "info", duration: 2000 })
