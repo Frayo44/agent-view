@@ -3,7 +3,7 @@
  * Shows session list on left, preview pane on right
  */
 
-import { createMemo, createSignal, For, Show, createEffect, onCleanup } from "solid-js"
+import { createMemo, createSignal, For, Show, createEffect, onCleanup, type Accessor } from "solid-js"
 import { TextAttributes, ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions, useKeyboard, useRenderer } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
@@ -652,7 +652,7 @@ export function Home() {
 
     return (
       <Show when={session()}>
-        {(s) => (
+        {(s: Accessor<Session>) => (
           <box flexDirection="column" paddingLeft={1} paddingRight={1}>
             {/* Session title and status */}
             <box flexDirection="row" justifyContent="space-between" height={1}>
