@@ -20,6 +20,8 @@ import { DialogShortcuts } from "@tui/component/dialog-shortcuts"
 import { getShortcuts } from "@/core/config"
 import { executeShortcut, getShortcutGroupPath } from "@/core/shortcut"
 import { useKeybind } from "@tui/context/keybind"
+import { useKV } from "@tui/context/kv"
+import { DialogUpdate } from "@tui/component/dialog-update"
 import { attachSessionSync, capturePane, wasCommandPaletteRequested } from "@/core/tmux"
 import { canFork } from "@/core/claude"
 import { useCommandDialog } from "@tui/component/dialog-command"
@@ -80,8 +82,10 @@ export function Home() {
   const renderer = useRenderer()
   const command = useCommandDialog()
   const keybind = useKeybind()
+  const kv = useKV()
 
   const shortcuts = createMemo(() => getShortcuts())
+  const updateInfo = () => kv.get<{ current: string; latest: string } | null>("updateInfo", null)
 
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [previewContent, setPreviewContent] = createSignal<string>("")
@@ -474,6 +478,15 @@ export function Home() {
           return
         }
         dialog.push(() => <DialogFork session={session} />)
+      }
+      return
+    }
+
+    // u to open update dialog
+    if (evt.name === "u" && !evt.shift && !evt.ctrl) {
+      const info = updateInfo()
+      if (info) {
+        dialog.push(() => <DialogUpdate current={info.current} latest={info.latest} />)
       }
       return
     }
@@ -897,6 +910,12 @@ export function Home() {
           <text fg={theme.text}>q</text>
           <text fg={theme.textMuted}>quit</text>
         </box>
+        <Show when={updateInfo()}>
+          <box flexDirection="column" alignItems="center">
+            <text fg={theme.success}>u</text>
+            <text fg={theme.success}>update</text>
+          </box>
+        </Show>
       </box>
     </box>
   )

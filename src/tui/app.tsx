@@ -17,7 +17,7 @@ function log(...args: unknown[]) {
   const msg = `[${new Date().toISOString()}] ${args.map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ")}\n`
   fs.appendFileSync(logFile, msg)
 }
-import { Switch, Match, createEffect, ErrorBoundary, Show, onMount } from "solid-js"
+import { Switch, Match, createEffect, ErrorBoundary, Show, onMount, createSignal } from "solid-js"
 import { RouteProvider, useRoute } from "@tui/context/route"
 import { SyncProvider, useSync } from "@tui/context/sync"
 import { ThemeProvider, useTheme } from "@tui/context/theme"
@@ -30,6 +30,8 @@ import { ToastProvider, useToast } from "@tui/ui/toast"
 import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
 import { DialogSessions } from "@tui/component/dialog-sessions"
 import { DialogNew } from "@tui/component/dialog-new"
+import { DialogUpdate } from "@tui/component/dialog-update"
+import { checkForUpdate } from "@/core/updater"
 import { Home } from "@tui/routes/home"
 import { Session } from "@tui/routes/session"
 import { getStorage, setStorage, Storage } from "@/core/storage"
@@ -136,10 +138,41 @@ function App(props: { onExit: () => Promise<void>; onRendererReady: (r: CliRende
 
   log("App initialized, route:", route.data.type, "dimensions:", dimensions().width, "x", dimensions().height)
 
+  const [updateInfo, setUpdateInfo] = createSignal<{ current: string; latest: string } | null>(null)
+  const kv = useKV()
+
   // Disable stdout interception to allow keyboard input
   onMount(() => {
     renderer.disableStdoutInterception()
     props.onRendererReady(renderer)
+  })
+
+  // Check for updates in background
+  onMount(() => {
+    checkForUpdate().then((info) => {
+      if (!info) return
+      setUpdateInfo(info)
+      kv.set("updateInfo", info)
+
+      toast.show({
+        title: "🎉 Update available",
+        message: `v${info.latest} (current: v${info.current}) — press U to update`,
+        variant: "info",
+        duration: 10000
+      })
+
+      command.register(() => [
+        {
+          title: "Update agent-view",
+          value: "app.update",
+          category: "System",
+          suggested: true,
+          onSelect: () => {
+            dialog.replace(() => <DialogUpdate current={info.current} latest={info.latest} />)
+          }
+        }
+      ])
+    })
   })
 
   // Register global commands
@@ -208,6 +241,13 @@ function App(props: { onExit: () => Promise<void>; onRendererReady: (r: CliRende
     if (evt.name === "l") {
       log("Opening sessions dialog from App")
       dialog.replace(() => <DialogSessions />)
+    }
+
+    if (evt.name === "u") {
+      const info = updateInfo()
+      if (info) {
+        dialog.replace(() => <DialogUpdate current={info.current} latest={info.latest} />)
+      }
     }
 
     if (evt.name === "q") {
