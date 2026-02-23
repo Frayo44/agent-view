@@ -637,11 +637,12 @@ export function Home() {
   }
 
   function PreviewHeader() {
-    const session = selectedSession()
-    if (!session) return null
+    const session = () => selectedSession()
 
     const statusColor = createMemo(() => {
-      switch (session.status) {
+      const s = session()
+      if (!s) return theme.textMuted
+      switch (s.status) {
         case "running": return theme.success
         case "waiting": return theme.warning
         case "error": return theme.error
@@ -650,37 +651,41 @@ export function Home() {
     })
 
     return (
-      <box flexDirection="column" paddingLeft={1} paddingRight={1}>
-        {/* Session title and status */}
-        <box flexDirection="row" justifyContent="space-between" height={1}>
-          <text fg={theme.text} attributes={TextAttributes.BOLD}>
-            {session.title}
-          </text>
-          <box flexDirection="row" gap={1}>
-            <text fg={statusColor()}>{STATUS_ICONS[session.status]}</text>
-            <text fg={statusColor()}>{session.status}</text>
+      <Show when={session()}>
+        {(s) => (
+          <box flexDirection="column" paddingLeft={1} paddingRight={1}>
+            {/* Session title and status */}
+            <box flexDirection="row" justifyContent="space-between" height={1}>
+              <text fg={theme.text} attributes={TextAttributes.BOLD}>
+                {s().title}
+              </text>
+              <box flexDirection="row" gap={1}>
+                <text fg={statusColor()}>{STATUS_ICONS[s().status]}</text>
+                <text fg={statusColor()}>{s().status}</text>
+              </box>
+            </box>
+
+            {/* Session info */}
+            <box flexDirection="row" gap={2} height={1}>
+              <text fg={theme.textMuted}>{truncatePath(s().projectPath, rightWidth() - 20)}</text>
+            </box>
+
+            {/* More info */}
+            <box flexDirection="row" gap={2} height={1}>
+              <text fg={theme.accent}>{s().tool}</text>
+              <text fg={theme.textMuted}>{formatRelativeTime(s().lastAccessed)}</text>
+              <Show when={s().worktreeBranch}>
+                <text fg={theme.info}>{s().worktreeBranch}</text>
+              </Show>
+            </box>
+
+            {/* Separator */}
+            <box height={1}>
+              <text fg={theme.border}>{"─".repeat(rightWidth() - 2)}</text>
+            </box>
           </box>
-        </box>
-
-        {/* Session info */}
-        <box flexDirection="row" gap={2} height={1}>
-          <text fg={theme.textMuted}>{truncatePath(session.projectPath, rightWidth() - 20)}</text>
-        </box>
-
-        {/* More info */}
-        <box flexDirection="row" gap={2} height={1}>
-          <text fg={theme.accent}>{session.tool}</text>
-          <text fg={theme.textMuted}>{formatRelativeTime(session.lastAccessed)}</text>
-          <Show when={session.worktreeBranch}>
-            <text fg={theme.info}>{session.worktreeBranch}</text>
-          </Show>
-        </box>
-
-        {/* Separator */}
-        <box height={1}>
-          <text fg={theme.border}>{"─".repeat(rightWidth() - 2)}</text>
-        </box>
-      </box>
+        )}
+      </Show>
     )
   }
 
