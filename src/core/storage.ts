@@ -285,9 +285,19 @@ export class Storage {
       worktreePath: "worktree_path",
       worktreeRepo: "worktree_repo",
       worktreeBranch: "worktree_branch",
-      toolData: "tool_data"
+      toolData: "tool_data",
+      // Direct column names (used by callers that pass SQL column names directly)
+      title: "title",
+      group_path: "group_path",
+      last_accessed: "last_accessed",
+      tool_data: "tool_data",
+      status: "status",
+      acknowledged: "acknowledged",
     }
-    const column = columnMap[field] ?? field
+    const column = columnMap[field]
+    if (!column) {
+      throw new Error(`updateSessionField: unknown field "${field}"`)
+    }
     const stmt = this.db.prepare(`UPDATE sessions SET ${column} = ? WHERE id = ?`)
     stmt.run(value as string | number | null, id)
   }
