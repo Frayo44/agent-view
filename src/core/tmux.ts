@@ -605,6 +605,73 @@ export function wasCommandPaletteRequested(): boolean {
  * Keybindings and status bar are configured via the custom tmux.conf,
  * so we just need to attach/detach and manage the screen buffer.
  */
+/**
+ * Collect memory usage (in KB) for multiple tmux sessions in one batch.
+ * Runs only 2 shell commands regardless of session count.
+ */
+export async function getSessionsMemoryKB(sessionNames: string[]): Promise<Map<string, number>> {
+  const result = new Map<string, number>()
+  if (sessionNames.length === 0) return result
+
+  try {
+    // Get all pane PIDs from our tmux server
+    const { stdout: paneOutput } = await execAsync(
+      tmuxCmd('list-panes -a -F "#{session_name} #{pane_pid}"')
+    )
+
+    // Get all process info in one shot
+    const { stdout: psOutput } = await execAsync("ps -eo pid=,ppid=,rss=")
+
+    // Build process tree lookup: pid -> { ppid, rss }
+    const procs = new Map<number, { ppid: number; rss: number }>()
+    for (const line of psOutput.trim().split("\n")) {
+      const parts = line.trim().split(/\s+/)
+      if (parts.length < 3) continue
+      const pid = parseInt(parts[0], 10)
+      const ppid = parseInt(parts[1], 10)
+      const rss = parseInt(parts[2], 10)
+      if (!isNaN(pid) && !isNaN(ppid) && !isNaN(rss)) {
+        procs.set(pid, { ppid, rss })
+      }
+    }
+
+    // Build children lookup for tree walking
+    const children = new Map<number, number[]>()
+    for (const [pid, info] of procs) {
+      const list = children.get(info.ppid) || []
+      list.push(pid)
+      children.set(info.ppid, list)
+    }
+
+    // Sum RSS for a process and all its descendants
+    function sumTree(pid: number): number {
+      let total = procs.get(pid)?.rss || 0
+      for (const child of children.get(pid) || []) {
+        total += sumTree(child)
+      }
+      return total
+    }
+
+    // Map session names to pane PIDs
+    const sessionNameSet = new Set(sessionNames)
+    for (const line of paneOutput.trim().split("\n")) {
+      if (!line) continue
+      const spaceIdx = line.indexOf(" ")
+      if (spaceIdx < 0) continue
+      const name = line.slice(0, spaceIdx)
+      const pid = parseInt(line.slice(spaceIdx + 1), 10)
+      if (!sessionNameSet.has(name) || isNaN(pid)) continue
+
+      const mem = sumTree(pid)
+      result.set(name, (result.get(name) || 0) + mem)
+    }
+  } catch {
+    // tmux or ps not available
+  }
+
+  return result
+}
+
 export function attachSessionSync(sessionName: string): void {
   const { spawnSync } = require("child_process")
 

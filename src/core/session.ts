@@ -41,6 +41,11 @@ function generateTitle(): string {
 
 export class SessionManager {
   private refreshInterval: NodeJS.Timeout | null = null
+  private memoryMap = new Map<string, number>() // sessionId → KB
+
+  getMemoryKB(sessionId: string): number | undefined {
+    return this.memoryMap.get(sessionId)
+  }
 
   startRefreshLoop(intervalMs = 500): void {
     if (this.refreshInterval) return
@@ -105,6 +110,19 @@ export class SessionManager {
     }
 
     storage.touch()
+
+    // Collect memory usage for all running sessions
+    const tmuxNames = sessions
+      .filter(s => s.tmuxSession && tmux.sessionExists(s.tmuxSession))
+      .map(s => s.tmuxSession)
+    const memMap = await tmux.getSessionsMemoryKB(tmuxNames)
+    for (const session of sessions) {
+      if (session.tmuxSession && memMap.has(session.tmuxSession)) {
+        this.memoryMap.set(session.id, memMap.get(session.tmuxSession)!)
+      } else {
+        this.memoryMap.delete(session.id)
+      }
+    }
   }
 
   async create(options: SessionCreateOptions): Promise<Session> {

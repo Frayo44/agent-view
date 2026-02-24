@@ -26,6 +26,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       config: {}
     })
 
+    // In-memory reactive store for per-session memory usage (KB)
+    const [memoryStore, setMemoryStore] = createStore<Record<string, number>>({})
+
     // Initial load
     const storage = getStorage()
     const manager = getSessionManager()
@@ -35,9 +38,17 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       const sessions = storage.loadSessions()
       const groups = storage.loadGroups()
 
+      // Build memory snapshot from manager
+      const mem: Record<string, number> = {}
+      for (const s of sessions) {
+        const kb = manager.getMemoryKB(s.id)
+        if (kb !== undefined) mem[s.id] = kb
+      }
+
       batch(() => {
         setStore("sessions", sessions)
         setStore("groups", groups)
+        setMemoryStore(mem)
         if (status() === "loading") {
           setStatus("partial")
         }
@@ -130,6 +141,11 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         moveToGroup(id: string, groupPath: string): void {
           manager.moveToGroup(id, groupPath)
           refresh()
+        },
+        getMemoryMB(id: string): number | undefined {
+          const kb = memoryStore[id]
+          if (kb === undefined || kb <= 0) return undefined
+          return Math.round(kb / 1024)
         }
       },
       group: {

@@ -640,6 +640,18 @@ export function Home() {
           <text> </text>
         </Show>
 
+        {/* Memory */}
+        <Show when={sync.session.getMemoryMB(props.session.id)}>
+          {(mb: () => number) => (
+            <>
+              <text fg={isSelected() ? theme.selectedListItemText : theme.textMuted}>
+                {mb() >= 1024 ? `${(mb() / 1024).toFixed(1)}G` : `${mb()}M`}
+              </text>
+              <text> </text>
+            </>
+          )}
+        </Show>
+
         {/* Time */}
         <text fg={isSelected() ? theme.selectedListItemText : theme.textMuted}>
           {formatSmartTime(props.session.lastAccessed)}
