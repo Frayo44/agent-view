@@ -6,7 +6,7 @@
  * to avoid conflicts with the user's tmux configuration.
  */
 
-import { spawn, exec } from "child_process"
+import { spawn, execFile } from "child_process"
 import { promisify } from "util"
 import path from "path"
 import os from "os"
@@ -21,7 +21,7 @@ async function getPty() {
   return pty
 }
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 export const SESSION_PREFIX = "agentorch_"
 
@@ -64,19 +64,19 @@ function ensureConfig(): void {
 }
 
 /**
- * Build a tmux command string that targets our isolated server
- */
-function tmuxCmd(subcmd: string): string {
-  ensureConfig()
-  return `tmux -L ${TMUX_SOCKET} -f "${CONFIG_PATH}" ${subcmd}`
-}
-
-/**
  * Build tmux spawn arguments that target our isolated server
  */
 function tmuxSpawnArgs(...args: string[]): string[] {
   ensureConfig()
   return ["-L", TMUX_SOCKET, "-f", CONFIG_PATH, ...args]
+}
+
+/**
+ * Execute a tmux command using execFile (no shell interpolation).
+ * All arguments are passed as an array to avoid shell injection.
+ */
+async function execTmux(...args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync("tmux", tmuxSpawnArgs(...args))
 }
 
 // Session cache - reduces subprocess spawns
@@ -94,7 +94,7 @@ const CACHE_TTL = 2000 // 2 seconds
 
 export async function isTmuxAvailable(): Promise<boolean> {
   try {
-    await execAsync("tmux -V")
+    await execFileAsync("tmux", ["-V"])
     return true
   } catch {
     return false
@@ -107,8 +107,8 @@ export async function isTmuxAvailable(): Promise<boolean> {
  */
 export async function refreshSessionCache(): Promise<void> {
   try {
-    const { stdout } = await execAsync(
-      tmuxCmd('list-windows -a -F "#{session_name}\t#{window_activity}"')
+    const { stdout } = await execTmux(
+      "list-windows", "-a", "-F", "#{session_name}\t#{window_activity}"
     )
 
     const newCache = new Map<string, number>()
@@ -189,19 +189,19 @@ export async function createSession(options: {
 }): Promise<void> {
   const cwd = options.cwd || process.env.HOME || "/tmp"
 
-  await execAsync(tmuxCmd(`new-session -d -s "${options.name}" -c "${cwd}"`))
+  await execTmux("new-session", "-d", "-s", options.name, "-c", cwd)
   registerSessionInCache(options.name)
 
   // Set window title if provided and prevent automatic renaming
   if (options.windowTitle) {
-    await execAsync(tmuxCmd(`rename-window -t "${options.name}" "${options.windowTitle}"`))
-    await execAsync(tmuxCmd(`set-option -t "${options.name}" automatic-rename off`))
-    await execAsync(tmuxCmd(`set-option -t "${options.name}" allow-rename off`))
+    await execTmux("rename-window", "-t", options.name, options.windowTitle)
+    await execTmux("set-option", "-t", options.name, "automatic-rename", "off")
+    await execTmux("set-option", "-t", options.name, "allow-rename", "off")
   }
 
   const envVars = options.env || {}
   for (const [key, value] of Object.entries(envVars)) {
-    await execAsync(tmuxCmd(`set-environment -t "${options.name}" ${key} "${value}"`))
+    await execTmux("set-environment", "-t", options.name, key, value)
   }
 
   if (options.command) {
@@ -217,13 +217,12 @@ export async function createSession(options: {
     }
 
     await sendKeys(options.name, cmdToSend)
-    await execAsync(tmuxCmd(`send-keys -t "${options.name}" Enter`))
   }
 }
 
 export async function killSession(name: string): Promise<void> {
   try {
-    await execAsync(tmuxCmd(`kill-session -t "${name}"`))
+    await execTmux("kill-session", "-t", name)
     sessionCache.data.delete(name)
   } catch {
     // Session might not exist
@@ -256,7 +255,7 @@ export async function sendKeys(name: string, keys: string): Promise<void> {
  * Send raw keys without Enter
  */
 export async function sendRawKeys(name: string, keys: string): Promise<void> {
-  await execAsync(tmuxCmd(`send-keys -t "${name}" "${keys}"`))
+  await execTmux("send-keys", "-t", name, keys)
 }
 
 export async function capturePane(
@@ -284,7 +283,7 @@ export async function capturePane(
   }
 
   try {
-    const { stdout } = await execAsync(tmuxCmd(args.join(" ")), {
+    const { stdout } = await execFileAsync("tmux", tmuxSpawnArgs(...args), {
       timeout: 5000
     })
     return stdout
@@ -297,15 +296,15 @@ export async function capturePane(
 }
 
 export async function getPaneDimensions(name: string): Promise<{ width: number; height: number }> {
-  const { stdout } = await execAsync(
-    tmuxCmd(`display-message -t "${name}" -p "#{pane_width}\t#{pane_height}"`)
+  const { stdout } = await execTmux(
+    "display-message", "-t", name, "-p", "#{pane_width}\t#{pane_height}"
   )
   const [width, height] = stdout.trim().split("\t").map(Number)
   return { width: width || 80, height: height || 24 }
 }
 
 export async function resizePane(name: string, width: number, height: number): Promise<void> {
-  await execAsync(tmuxCmd(`resize-pane -t "${name}" -x ${width} -y ${height}`))
+  await execTmux("resize-pane", "-t", name, "-x", String(width), "-y", String(height))
 }
 
 /**
@@ -327,7 +326,7 @@ export function attachSession(name: string): void {
  */
 export async function listSessions(): Promise<string[]> {
   try {
-    const { stdout } = await execAsync(tmuxCmd("list-sessions -F #{session_name}"))
+    const { stdout } = await execTmux("list-sessions", "-F", "#{session_name}")
     return stdout
       .trim()
       .split("\n")
@@ -342,7 +341,7 @@ export async function listSessions(): Promise<string[]> {
  */
 export async function getSessionEnvironment(sessionName: string, varName: string): Promise<string | null> {
   try {
-    const { stdout } = await execAsync(tmuxCmd(`show-environment -t "${sessionName}" ${varName}`))
+    const { stdout } = await execTmux("show-environment", "-t", sessionName, varName)
     // Output format: "VAR_NAME=value" or "-VAR_NAME" if unset
     const line = stdout.trim()
     if (line.startsWith("-") || !line.includes("=")) {
@@ -363,7 +362,7 @@ export async function getCurrentSession(): Promise<string | null> {
   if (!insideTmux()) return null
 
   try {
-    const { stdout } = await execAsync("tmux display-message -p #{session_name}")
+    const { stdout } = await execFileAsync("tmux", ["display-message", "-p", "#{session_name}"])
     return stdout.trim()
   } catch {
     return null
