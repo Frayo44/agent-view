@@ -627,9 +627,9 @@ export async function getSessionsMemoryKB(sessionNames: string[]): Promise<Map<s
     for (const line of psOutput.trim().split("\n")) {
       const parts = line.trim().split(/\s+/)
       if (parts.length < 3) continue
-      const pid = parseInt(parts[0], 10)
-      const ppid = parseInt(parts[1], 10)
-      const rss = parseInt(parts[2], 10)
+      const pid = parseInt(parts[0]!, 10)
+      const ppid = parseInt(parts[1]!, 10)
+      const rss = parseInt(parts[2]!, 10)
       if (!isNaN(pid) && !isNaN(ppid) && !isNaN(rss)) {
         procs.set(pid, { ppid, rss })
       }

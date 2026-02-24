@@ -113,7 +113,7 @@ export class SessionManager {
 
     // Collect memory usage for all running sessions
     const tmuxNames = sessions
-      .filter(s => s.tmuxSession && tmux.sessionExists(s.tmuxSession))
+      .filter((s): s is Session & { tmuxSession: string } => !!s.tmuxSession && tmux.sessionExists(s.tmuxSession))
       .map(s => s.tmuxSession)
     const memMap = await tmux.getSessionsMemoryKB(tmuxNames)
     for (const session of sessions) {
