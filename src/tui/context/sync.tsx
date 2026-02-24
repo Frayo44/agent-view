@@ -106,6 +106,11 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           await manager.delete(id, options)
           refresh()
         },
+        async resume(id: string): Promise<Session> {
+          const session = await manager.resume(id)
+          refresh()
+          return session
+        },
         async restart(id: string): Promise<Session> {
           const session = await manager.restart(id)
           refresh()

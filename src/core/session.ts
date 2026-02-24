@@ -396,6 +396,51 @@ export class SessionManager {
     storage.touch()
   }
 
+  async resume(sessionId: string): Promise<Session> {
+    const storage = getStorage()
+    const session = storage.getSession(sessionId)
+
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`)
+    }
+
+    if (session.tmuxSession) {
+      await tmux.killSession(session.tmuxSession)
+    }
+
+    // For Claude sessions with a claudeSessionId, resume the existing conversation
+    const claudeSessionId = session.tool === "claude" && session.toolData?.claudeSessionId
+      ? (session.toolData.claudeSessionId as string)
+      : undefined
+
+    const command = claudeSessionId
+      ? `claude --resume ${claudeSessionId}`
+      : session.command
+
+    const env: Record<string, string> = { AGENT_ORCHESTRATOR_SESSION: session.id }
+    if (claudeSessionId) {
+      env.CLAUDE_SESSION_ID = claudeSessionId
+    }
+
+    const newTmuxName = tmux.generateSessionName(session.title)
+    await tmux.createSession({
+      name: newTmuxName,
+      command,
+      cwd: session.projectPath,
+      env
+    })
+
+    session.tmuxSession = newTmuxName
+    session.command = command
+    session.status = "running"
+    session.lastAccessed = new Date()
+
+    storage.saveSession(session)
+    storage.touch()
+
+    return session
+  }
+
   async restart(sessionId: string): Promise<Session> {
     const storage = getStorage()
     const session = storage.getSession(sessionId)

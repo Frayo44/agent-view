@@ -235,12 +235,7 @@ export function Home() {
     sync.refresh()
   }
 
-  function handleAttach(session: Session) {
-    if (!session.tmuxSession) {
-      toast.show({ message: "Session has no tmux session", variant: "error", duration: 2000 })
-      return
-    }
-
+  function doAttach(session: Session) {
     previewFetchAbort = true
     renderer.suspend()
     try {
@@ -255,6 +250,50 @@ export function Home() {
     if (wasCommandPaletteRequested()) {
       command.open()
     }
+  }
+
+  function handleAttach(session: Session) {
+    if (!session.tmuxSession) {
+      toast.show({ message: "Session has no tmux session", variant: "error", duration: 2000 })
+      return
+    }
+
+    // If session is stopped, offer to resume or restart
+    if (session.status === "stopped") {
+      const isClaudeWithSession = session.tool === "claude" && session.toolData?.claudeSessionId
+      const options = [
+        ...(isClaudeWithSession
+          ? [{ title: "Resume session", value: "resume" }]
+          : []),
+        { title: "Restart session", value: "restart" },
+      ]
+
+      dialog.replace(() => (
+        <DialogSelect
+          title={`"${session.title}" is stopped`}
+          options={options}
+          onSelect={async (opt) => {
+            dialog.clear()
+            try {
+              let updated: Session
+              if (opt.value === "resume") {
+                updated = await sync.session.resume(session.id)
+              } else {
+                updated = await sync.session.restart(session.id)
+              }
+              toast.show({ message: `Session ${opt.value === "resume" ? "resumed" : "restarted"}`, variant: "success", duration: 2000 })
+              sync.refresh()
+              doAttach(updated)
+            } catch (err) {
+              toast.error(err as Error)
+            }
+          }}
+        />
+      ))
+      return
+    }
+
+    doAttach(session)
   }
 
   async function handleDelete(session: Session) {
