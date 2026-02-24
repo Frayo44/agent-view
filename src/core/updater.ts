@@ -47,18 +47,117 @@ export async function checkForUpdate(): Promise<{ current: string; latest: strin
   }
 }
 
+/**
+ * Detect platform and architecture for binary download.
+ */
+function detectPlatform(): { os: string; arch: string } {
+  const platform = process.platform === "darwin" ? "darwin" : "linux"
+  const arch = process.arch === "arm64" ? "arm64" : "x64"
+  return { os: platform, arch }
+}
+
+/**
+ * Download and install the latest release binary directly.
+ * Uses spawnSync with argument arrays (no shell) and downloads
+ * from a tagged release URL instead of piping an unpinned script.
+ */
 export function performUpdateSync(): void {
   const { spawnSync } = require("child_process")
+  const fs = require("fs")
+  const path = require("path")
+  const os = require("os")
 
   // Exit alternate screen buffer
   process.stdout.write("\x1b[?1049l")
   process.stdout.write("\x1b[2J\x1b[H")
   process.stdout.write("\x1b[?25h")
 
-  spawnSync("bash", ["-c", "curl -fsSL https://raw.githubusercontent.com/frayo44/agent-view/main/install.sh | bash"], {
-    stdio: "inherit",
-    env: process.env
-  })
+  const REPO = "frayo44/agent-view"
+  const APP = "agent-view"
+  const installDir = process.env.AGENT_VIEW_INSTALL_DIR || path.join(os.homedir(), ".agent-view", "bin")
+
+  try {
+    // 1. Fetch latest release tag from GitHub API
+    console.log("Checking latest release...")
+    const apiResult = spawnSync("curl", [
+      "-fsSL",
+      "-H", "Accept: application/vnd.github.v3+json",
+      `https://api.github.com/repos/${REPO}/releases/latest`
+    ], { stdio: ["pipe", "pipe", "pipe"], timeout: 15000 })
+
+    if (apiResult.status !== 0) {
+      throw new Error(`Failed to fetch release info: ${apiResult.stderr?.toString() || "unknown error"}`)
+    }
+
+    const releaseData = JSON.parse(apiResult.stdout.toString())
+    const tagName = releaseData.tag_name
+    if (!tagName) {
+      throw new Error("No tag_name found in release data")
+    }
+    const version = tagName.replace(/^v/, "")
+
+    // 2. Detect platform and build download URL
+    const { os: plat, arch } = detectPlatform()
+    const filename = `${APP}-${plat}-${arch}.tar.gz`
+    const downloadUrl = `https://github.com/${REPO}/releases/download/${tagName}/${filename}`
+
+    // 3. Create temp directory
+    const tmpDir = path.join(os.tmpdir(), `${APP}-update-${process.pid}`)
+    fs.mkdirSync(tmpDir, { recursive: true })
+
+    // 4. Download tarball (no shell, argument array)
+    console.log(`Downloading v${version} for ${plat}-${arch}...`)
+    const downloadResult = spawnSync("curl", [
+      "-fSL",
+      "--progress-bar",
+      "-o", path.join(tmpDir, filename),
+      downloadUrl
+    ], { stdio: ["pipe", "inherit", "inherit"], timeout: 120000 })
+
+    if (downloadResult.status !== 0) {
+      throw new Error("Download failed. The release may not have binaries for your platform.")
+    }
+
+    // 5. Extract tarball (no shell, argument array)
+    const extractResult = spawnSync("tar", [
+      "-xzf", path.join(tmpDir, filename),
+      "-C", tmpDir
+    ], { stdio: "pipe", timeout: 30000 })
+
+    if (extractResult.status !== 0) {
+      throw new Error(`Extraction failed: ${extractResult.stderr?.toString() || "unknown error"}`)
+    }
+
+    // 6. Find and install binary
+    let binaryPath = path.join(tmpDir, APP)
+    if (!fs.existsSync(binaryPath)) {
+      binaryPath = path.join(tmpDir, `${APP}-${plat}-${arch}`, APP)
+    }
+    if (!fs.existsSync(binaryPath)) {
+      throw new Error("Binary not found in archive")
+    }
+
+    fs.mkdirSync(installDir, { recursive: true })
+    fs.copyFileSync(binaryPath, path.join(installDir, APP))
+    fs.chmodSync(path.join(installDir, APP), 0o755)
+
+    // Create short alias symlink
+    try {
+      fs.unlinkSync(path.join(installDir, "av"))
+    } catch {
+      // Symlink may not exist yet
+    }
+    fs.symlinkSync(path.join(installDir, APP), path.join(installDir, "av"))
+
+    // 7. Cleanup
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+
+    console.log(`\nUpdated to v${version}`)
+    console.log(`Binary: ${path.join(installDir, APP)}`)
+  } catch (err: any) {
+    console.error(`\nUpdate failed: ${err.message}`)
+    console.error("You can update manually: curl -fsSL https://raw.githubusercontent.com/frayo44/agent-view/main/install.sh | bash")
+  }
 
   // Clear screen and re-enter alternate buffer for TUI
   process.stdout.write("\x1b[2J\x1b[H")
