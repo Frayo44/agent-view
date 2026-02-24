@@ -83,6 +83,22 @@ describe("generateSessionName", () => {
       expect(name).not.toContain(":")
     }
   })
+
+  test("strips shell metacharacters from session names", () => {
+    const dangerous = [
+      "test; rm -rf /",
+      "test && echo pwned",
+      "test | cat /etc/passwd",
+      "test$(whoami)",
+      "test`id`",
+    ]
+
+    for (const title of dangerous) {
+      const name = generateSessionName(title)
+      expect(name).toMatch(/^agentorch_[a-z0-9-]*-[a-z0-9]+$/)
+      expect(name).not.toMatch(/[;|&$`'"<>\\(){}]/)
+    }
+  })
 })
 
 describe("parseToolStatus", () => {
