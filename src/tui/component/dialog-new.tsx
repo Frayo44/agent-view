@@ -21,12 +21,12 @@ import { HistoryManager } from "@/core/history"
 import { getStorage } from "@/core/storage"
 import type { Tool, ClaudeSessionMode } from "@/core/types"
 import { getToolCommand } from "@/core/types"
-import { exec } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
 import { existsSync } from "fs"
 import path from "path"
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 async function commandExists(cmd: string, cwd?: string): Promise<boolean> {
   // For relative paths (./something), check if file exists in cwd
@@ -39,9 +39,9 @@ async function commandExists(cmd: string, cwd?: string): Promise<boolean> {
   if (cmd.startsWith("/")) {
     return existsSync(cmd)
   }
-  // For commands in PATH, use which
+  // For commands in PATH, use which (execFile avoids shell injection)
   try {
-    await execAsync(`which ${cmd}`)
+    await execFileAsync("which", [cmd])
     return true
   } catch {
     return false
