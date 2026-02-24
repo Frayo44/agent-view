@@ -135,7 +135,7 @@ export function performUpdateSync(): void {
       throw new Error("Binary not found in archive")
     }
 
-    fs.mkdirSync(installDir, { recursive: true })
+    fs.mkdirSync(installDir, { recursive: true, mode: 0o755 })
     fs.copyFileSync(binaryPath, path.join(installDir, APP))
     fs.chmodSync(path.join(installDir, APP), 0o755)
 

@@ -12,7 +12,7 @@ import os from "os"
 // File logger for debugging
 const logDir = path.join(os.homedir(), ".agent-orchestrator")
 const logFile = path.join(logDir, "debug.log")
-fs.mkdirSync(logDir, { recursive: true })
+fs.mkdirSync(logDir, { recursive: true, mode: 0o700 })
 function log(...args: unknown[]) {
   const msg = `[${new Date().toISOString()}] ${args.map(a => typeof a === "object" ? JSON.stringify(a) : String(a)).join(" ")}\n`
   fs.appendFileSync(logFile, msg)
