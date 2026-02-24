@@ -87,10 +87,8 @@ export class SessionManager {
 
       const exists = tmux.sessionExists(session.tmuxSession)
       if (!exists) {
-        // Session was killed externally — don't overwrite hibernated status
-        if (session.status !== "hibernated") {
-          storage.writeStatus(session.id, "stopped", session.tool)
-        }
+        // Session was killed externally
+        storage.writeStatus(session.id, "stopped", session.tool)
         continue
       }
 

@@ -12,7 +12,8 @@ const STATUS_LABELS: Record<SessionStatus, { icon: string; label: string }> = {
   waiting: { icon: "◐", label: "Waiting" },
   idle: { icon: "○", label: "Idle" },
   stopped: { icon: "◻", label: "Stopped" },
-  error: { icon: "✗", label: "Error" }
+  error: { icon: "✗", label: "Error" },
+  hibernated: { icon: "◉", label: "Hibernated" }
 }
 
 function formatTime(date: Date): string {
