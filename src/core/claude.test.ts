@@ -68,8 +68,8 @@ describe("buildClaudeCommand", () => {
 describe("buildForkCommand", () => {
   const defaultOptions: ForkCommandOptions = {
     projectPath: "/path/to/project",
-    parentSessionId: "parent-uuid-1234-5678-9abc-def012345678",
-    newSessionId: "new-uuid-abcd-efgh-ijkl-mnop12345678"
+    parentSessionId: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    newSessionId: "f0e1d2c3-b4a5-4968-8172-6354a7b8c9d0"
   }
 
   describe("session ID handling", () => {
@@ -86,17 +86,31 @@ describe("buildForkCommand", () => {
 
     test("uses the provided parentSessionId for --resume flag", () => {
       const result = buildForkCommand(defaultOptions)
-      expect(result).toContain(`--resume ${defaultOptions.parentSessionId}`)
+      expect(result).toContain(`--resume '${defaultOptions.parentSessionId}'`)
     })
 
     test("passes newSessionId to --session-id flag", () => {
       const result = buildForkCommand(defaultOptions)
-      expect(result).toContain(`--session-id "${defaultOptions.newSessionId}"`)
+      expect(result).toContain(`--session-id '${defaultOptions.newSessionId}'`)
     })
 
     test("sets tmux environment with the exact newSessionId", () => {
       const result = buildForkCommand(defaultOptions)
-      expect(result).toContain(`tmux set-environment CLAUDE_SESSION_ID "${defaultOptions.newSessionId}"`)
+      expect(result).toContain(`tmux set-environment CLAUDE_SESSION_ID '${defaultOptions.newSessionId}'`)
+    })
+
+    test("rejects invalid newSessionId", () => {
+      expect(() => buildForkCommand({
+        ...defaultOptions,
+        newSessionId: "not-a-valid-uuid"
+      })).toThrow("Invalid new session ID")
+    })
+
+    test("rejects invalid parentSessionId", () => {
+      expect(() => buildForkCommand({
+        ...defaultOptions,
+        parentSessionId: "$(whoami)"
+      })).toThrow("Invalid parent session ID")
     })
   })
 
@@ -162,10 +176,10 @@ describe("buildForkCommand", () => {
       // in the session's toolData. Previously, buildForkCommand generated a
       // NEW UUID with uuidgen, causing a mismatch.
 
-      const storedSessionId = "stored-uuid-1111-2222-3333-444455556666"
+      const storedSessionId = "11111111-2222-4333-8444-555566667777"
       const options: ForkCommandOptions = {
         projectPath: "/some/path",
-        parentSessionId: "parent-uuid",
+        parentSessionId: "aaaabbbb-cccc-4ddd-8eee-ffffffffffff",
         newSessionId: storedSessionId
       }
 
@@ -173,8 +187,8 @@ describe("buildForkCommand", () => {
 
       // The command must use the EXACT session ID that was passed in
       // (which is the same one stored in toolData)
-      expect(result).toContain(`--session-id "${storedSessionId}"`)
-      expect(result).toContain(`CLAUDE_SESSION_ID "${storedSessionId}"`)
+      expect(result).toContain(`--session-id '${storedSessionId}'`)
+      expect(result).toContain(`CLAUDE_SESSION_ID '${storedSessionId}'`)
 
       // Must NOT generate a different ID
       expect(result).not.toContain("uuidgen")

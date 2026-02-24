@@ -25,8 +25,8 @@ const execFileAsync = promisify(execFile)
 
 export const SESSION_PREFIX = "agentorch_"
 
-// Signal file for command palette request
-const COMMAND_PALETTE_SIGNAL = "/tmp/agent-view-cmd-palette"
+// Signal file for command palette request (user-scoped to prevent symlink races in /tmp)
+const COMMAND_PALETTE_SIGNAL = path.join(os.homedir(), ".agent-view", "cmd-palette-signal")
 
 // --- Isolated tmux server configuration ---
 // All agent-view sessions run on a dedicated tmux socket with a custom config,

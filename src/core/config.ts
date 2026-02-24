@@ -40,7 +40,7 @@ let cachedConfig: AppConfig = { ...DEFAULT_CONFIG }
 
 export async function ensureConfigDir(): Promise<void> {
   try {
-    await fs.mkdir(CONFIG_DIR, { recursive: true })
+    await fs.mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 })
   } catch (err) {
     // Directory might already exist
   }

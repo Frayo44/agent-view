@@ -135,7 +135,7 @@ export class SessionManager {
     } else if (options.tool === "claude" && claudeSessionId) {
       // New Claude session with our generated session ID
       const baseCommand = buildClaudeCommand(options.claudeOptions)
-      command = `${baseCommand} --session-id "${claudeSessionId}"`
+      command = `${baseCommand} --session-id '${claudeSessionId}'`
     } else if (options.tool === "claude" && options.claudeOptions) {
       command = buildClaudeCommand(options.claudeOptions)
     } else {
@@ -412,7 +412,7 @@ export class SessionManager {
     const isClaudeSession = session.tool === "claude" && session.toolData?.claudeSessionId
     const newClaudeSessionId = isClaudeSession ? randomUUID() : undefined
     const command = isClaudeSession
-      ? `claude --session-id "${newClaudeSessionId}"`
+      ? `claude --session-id '${newClaudeSessionId}'`
       : session.command
 
     const env: Record<string, string> = { AGENT_ORCHESTRATOR_SESSION: session.id }

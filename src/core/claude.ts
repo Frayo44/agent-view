@@ -275,6 +275,14 @@ export interface ForkCommandOptions {
  * matching the stored ID.
  */
 export function buildForkCommand(options: ForkCommandOptions): string {
+  // Validate session IDs are proper UUIDs before interpolating into shell command
+  if (!UUID_PATTERN.test(options.newSessionId)) {
+    throw new Error(`Invalid new session ID: ${options.newSessionId}`)
+  }
+  if (!UUID_PATTERN.test(options.parentSessionId)) {
+    throw new Error(`Invalid parent session ID: ${options.parentSessionId}`)
+  }
+
   // Escape single quotes for shell safety
   const escapedPath = options.projectPath.replace(/'/g, "'\\''")
 
@@ -282,10 +290,11 @@ export function buildForkCommand(options: ForkCommandOptions): string {
   // - cd to project directory
   // - set tmux env var for session tracking
   // - run claude with fork flags using the PRE-GENERATED session ID
+  // All interpolated values are single-quoted to prevent shell expansion
   return (
     `cd '${escapedPath}' && ` +
-    `tmux set-environment CLAUDE_SESSION_ID "${options.newSessionId}"; ` +
-    `claude --session-id "${options.newSessionId}" --resume ${options.parentSessionId} --fork-session`
+    `tmux set-environment CLAUDE_SESSION_ID '${options.newSessionId}'; ` +
+    `claude --session-id '${options.newSessionId}' --resume '${options.parentSessionId}' --fork-session`
   )
 }
 

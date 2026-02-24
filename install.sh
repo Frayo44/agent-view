@@ -219,8 +219,8 @@ download_and_install() {
     echo -e "\n${MUTED}Installing ${NC}$APP ${MUTED}version: ${NC}$specific_version"
     echo -e "${MUTED}Platform: ${NC}$platform"
 
-    local tmp_dir="${TMPDIR:-/tmp}/$APP-$$"
-    mkdir -p "$tmp_dir"
+    local tmp_dir
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/$APP-XXXXXX")
 
     echo -e "${MUTED}Downloading...${NC}"
     if ! curl -#fL -o "$tmp_dir/$filename" "$url"; then

@@ -91,8 +91,8 @@ export function performUpdateSync(): void {
 
     const releaseData = JSON.parse(apiResult.stdout.toString())
     const tagName = releaseData.tag_name
-    if (!tagName) {
-      throw new Error("No tag_name found in release data")
+    if (!tagName || !/^v?\d+\.\d+\.\d+(-[\w.]+)?$/.test(tagName)) {
+      throw new Error(`Invalid or missing tag_name in release data: ${tagName}`)
     }
     const version = tagName.replace(/^v/, "")
 
@@ -101,9 +101,8 @@ export function performUpdateSync(): void {
     const filename = `${APP}-${plat}-${arch}.tar.gz`
     const downloadUrl = `https://github.com/${REPO}/releases/download/${tagName}/${filename}`
 
-    // 3. Create temp directory
-    const tmpDir = path.join(os.tmpdir(), `${APP}-update-${process.pid}`)
-    fs.mkdirSync(tmpDir, { recursive: true })
+    // 3. Create temp directory (mkdtemp generates unpredictable name, preventing symlink races)
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `${APP}-update-`))
 
     // 4. Download tarball (no shell, argument array)
     console.log(`Downloading v${version} for ${plat}-${arch}...`)
