@@ -3,12 +3,20 @@
  * Based on agent-view's internal/git package
  */
 
-import { exec } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
 import * as path from "path"
 import * as os from "os"
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
+
+/**
+ * Execute a git command using execFile (no shell interpolation).
+ * Uses cwd option instead of git -C to avoid path injection.
+ */
+async function execGit(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync("git", args, { cwd })
+}
 
 export interface Worktree {
   path: string
@@ -19,7 +27,7 @@ export interface Worktree {
 
 export async function isGitRepo(dir: string): Promise<boolean> {
   try {
-    await execAsync(`git -C "${dir}" rev-parse --git-dir`)
+    await execGit(["rev-parse", "--git-dir"], dir)
     return true
   } catch {
     return false
@@ -28,7 +36,7 @@ export async function isGitRepo(dir: string): Promise<boolean> {
 
 export async function getRepoRoot(dir: string): Promise<string> {
   try {
-    const { stdout } = await execAsync(`git -C "${dir}" rev-parse --show-toplevel`)
+    const { stdout } = await execGit(["rev-parse", "--show-toplevel"], dir)
     return stdout.trim()
   } catch (err) {
     throw new Error(`not a git repository: ${err}`)
@@ -37,7 +45,7 @@ export async function getRepoRoot(dir: string): Promise<string> {
 
 export async function getCurrentBranch(dir: string): Promise<string> {
   try {
-    const { stdout } = await execAsync(`git -C "${dir}" rev-parse --abbrev-ref HEAD`)
+    const { stdout } = await execGit(["rev-parse", "--abbrev-ref", "HEAD"], dir)
     return stdout.trim()
   } catch (err) {
     throw new Error(`failed to get current branch: ${err}`)
@@ -46,7 +54,7 @@ export async function getCurrentBranch(dir: string): Promise<string> {
 
 export async function branchExists(repoDir: string, branchName: string): Promise<boolean> {
   try {
-    await execAsync(`git -C "${repoDir}" show-ref --verify --quiet refs/heads/${branchName}`)
+    await execGit(["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], repoDir)
     return true
   } catch {
     return false
@@ -157,19 +165,16 @@ export async function createWorktree(
 
   const wtPath = worktreePath || generateWorktreePath(repoDir, branchName)
 
-  let cmd: string
-  if (await branchExists(repoDir, branchName)) {
-    // Use existing branch
-    cmd = `cd "${repoDir}" && git worktree add "${wtPath}" "${branchName}"`
-  } else {
-    // Create new branch with -b flag
-    // If baseBranch is provided, create from that branch instead of HEAD
-    const base = baseBranch || "HEAD"
-    cmd = `cd "${repoDir}" && git worktree add -b "${branchName}" "${wtPath}" ${base}`
-  }
-
   try {
-    await execAsync(cmd)
+    if (await branchExists(repoDir, branchName)) {
+      // Use existing branch
+      await execGit(["worktree", "add", wtPath, branchName], repoDir)
+    } else {
+      // Create new branch with -b flag
+      // If baseBranch is provided, create from that branch instead of HEAD
+      const base = baseBranch || "HEAD"
+      await execGit(["worktree", "add", "-b", branchName, wtPath, base], repoDir)
+    }
     return wtPath
   } catch (err: any) {
     const output = err.stderr || err.stdout || err.message
@@ -183,7 +188,7 @@ export async function listWorktrees(repoDir: string): Promise<Worktree[]> {
   }
 
   try {
-    const { stdout } = await execAsync(`git -C "${repoDir}" worktree list --porcelain`)
+    const { stdout } = await execGit(["worktree", "list", "--porcelain"], repoDir)
     return parseWorktreeList(stdout)
   } catch (err) {
     throw new Error(`failed to list worktrees: ${err}`)
@@ -257,10 +262,10 @@ export async function removeWorktree(repoDir: string, worktreePath: string, forc
   if (force) {
     args.push("--force")
   }
-  args.push(`"${worktreePath}"`)
+  args.push(worktreePath)
 
   try {
-    await execAsync(`git -C "${repoDir}" ${args.join(" ")}`)
+    await execGit(args, repoDir)
   } catch (err: any) {
     const output = err.stderr || err.stdout || err.message
     throw new Error(`failed to remove worktree: ${output}`)
@@ -273,8 +278,8 @@ export async function removeWorktree(repoDir: string, worktreePath: string, forc
 export async function isWorktree(dir: string): Promise<boolean> {
   try {
     const [commonDir, gitDir] = await Promise.all([
-      execAsync(`git -C "${dir}" rev-parse --git-common-dir`),
-      execAsync(`git -C "${dir}" rev-parse --git-dir`)
+      execGit(["rev-parse", "--git-common-dir"], dir),
+      execGit(["rev-parse", "--git-dir"], dir)
     ])
 
     const common = commonDir.stdout.trim()
@@ -289,7 +294,7 @@ export async function isWorktree(dir: string): Promise<boolean> {
 
 export async function hasUncommittedChanges(dir: string): Promise<boolean> {
   try {
-    const { stdout } = await execAsync(`git -C "${dir}" status --porcelain`)
+    const { stdout } = await execGit(["status", "--porcelain"], dir)
     return stdout.trim() !== ""
   } catch (err: any) {
     const output = err.stderr || err.stdout || err.message
@@ -303,7 +308,7 @@ export async function hasUncommittedChanges(dir: string): Promise<boolean> {
 export async function getDefaultBranch(repoDir: string): Promise<string> {
   // Try symbolic-ref first (works when remote HEAD is set)
   try {
-    const { stdout } = await execAsync(`git -C "${repoDir}" symbolic-ref refs/remotes/origin/HEAD`)
+    const { stdout } = await execGit(["symbolic-ref", "refs/remotes/origin/HEAD"], repoDir)
     const ref = stdout.trim()
     const branch = ref.replace("refs/remotes/origin/", "")
     if (branch && branch !== ref) {
@@ -332,7 +337,7 @@ export function generateBranchName(title?: string): string {
 
 export async function pruneWorktrees(repoDir: string): Promise<void> {
   try {
-    await execAsync(`git -C "${repoDir}" worktree prune`)
+    await execGit(["worktree", "prune"], repoDir)
   } catch (err: any) {
     const output = err.stderr || err.stdout || err.message
     throw new Error(`failed to prune worktrees: ${output}`)
