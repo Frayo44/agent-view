@@ -78,7 +78,15 @@ export function DialogNew() {
   const [title, setTitle] = createSignal("")
   const [selectedTool, setSelectedTool] = createSignal<Tool>(defaultTool)
   const [customCommand, setCustomCommand] = createSignal("")
-  const [projectPath, setProjectPath] = createSignal(process.cwd())
+  // Abbreviate home directory as ~ to prevent long paths from being clipped
+  const home = process.env.HOME || ""
+  const cwd = home && process.cwd().startsWith(home)
+    ? process.cwd().replace(home, "~")
+    : process.cwd()
+  const [projectPath, setProjectPath] = createSignal(cwd)
+  // Expand ~ back to full path for filesystem operations
+  const expandPath = (p: string) =>
+    home && p.startsWith("~") ? p.replace("~", home) : p
   const [creating, setCreating] = createSignal(false)
   const [statusMessage, setStatusMessage] = createSignal("")
   const [spinnerFrame, setSpinnerFrame] = createSignal(0)
@@ -121,7 +129,7 @@ export function DialogNew() {
   })
 
   createEffect(async () => {
-    const path = projectPath()
+    const path = expandPath(projectPath())
     try {
       const result = await isGitRepo(path)
       setIsInGitRepo(result)
@@ -203,11 +211,7 @@ export function DialogNew() {
         throw new Error("Please enter a custom command")
       }
 
-      let sessionProjectPath = projectPath().trim() || process.cwd()
-      // Expand ~ to home directory (shell doesn't do this for us)
-      if (sessionProjectPath.startsWith("~")) {
-        sessionProjectPath = sessionProjectPath.replace("~", process.env.HOME || "")
-      }
+      let sessionProjectPath = expandPath(projectPath().trim()) || process.cwd()
       if (!existsSync(sessionProjectPath)) {
         throw new Error(`Directory '${sessionProjectPath}' does not exist`)
       }
@@ -226,7 +230,7 @@ export function DialogNew() {
 
       if (useWorktree() && isInGitRepo()) {
         setStatusMessage("Creating worktree...")
-        const repoRoot = await getRepoRoot(projectPath())
+        const repoRoot = await getRepoRoot(expandPath(projectPath()))
         const branchName = worktreeBranch()
           ? sanitizeBranchName(worktreeBranch())
           : generateBranchName(title() || undefined)
