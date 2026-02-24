@@ -1,8 +1,12 @@
 /**
  * Auto-updater
- * Checks GitHub for newer releases and runs install script to update
+ * Checks GitHub for newer releases and downloads tagged release binary to update
  */
 
+import { spawnSync } from "child_process"
+import fs from "fs"
+import path from "path"
+import os from "os"
 import pkg from "../../package.json"
 
 interface GitHubRelease {
@@ -62,11 +66,6 @@ function detectPlatform(): { os: string; arch: string } {
  * from a tagged release URL instead of piping an unpinned script.
  */
 export function performUpdateSync(): void {
-  const { spawnSync } = require("child_process")
-  const fs = require("fs")
-  const path = require("path")
-  const os = require("os")
-
   // Exit alternate screen buffer
   process.stdout.write("\x1b[?1049l")
   process.stdout.write("\x1b[2J\x1b[H")
@@ -155,7 +154,7 @@ export function performUpdateSync(): void {
     console.log(`Binary: ${path.join(installDir, APP)}`)
   } catch (err: any) {
     console.error(`\nUpdate failed: ${err.message}`)
-    console.error("You can update manually: curl -fsSL https://raw.githubusercontent.com/frayo44/agent-view/main/install.sh | bash")
+    console.error("You can update manually from: https://github.com/frayo44/agent-view/releases")
   }
 
   // Clear screen and re-enter alternate buffer for TUI

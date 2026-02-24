@@ -6,7 +6,7 @@
  * to avoid conflicts with the user's tmux configuration.
  */
 
-import { spawn, execFile } from "child_process"
+import { spawn, spawnSync, execFile } from "child_process"
 import { promisify } from "util"
 import path from "path"
 import os from "os"
@@ -230,8 +230,6 @@ export async function killSession(name: string): Promise<void> {
 }
 
 export async function sendKeys(name: string, keys: string): Promise<void> {
-  const { spawnSync } = require("child_process")
-
   // Send text literally (no key name interpretation)
   const textArgs = tmuxSpawnArgs("send-keys", "-t", name, "-l", keys)
   const textResult = spawnSync("tmux", textArgs, { stdio: "pipe" })
@@ -605,8 +603,6 @@ export function wasCommandPaletteRequested(): boolean {
  * so we just need to attach/detach and manage the screen buffer.
  */
 export function attachSessionSync(sessionName: string): void {
-  const { spawnSync } = require("child_process")
-
   try {
     fs.unlinkSync(COMMAND_PALETTE_SIGNAL)
   } catch {
