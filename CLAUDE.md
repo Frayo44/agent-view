@@ -88,6 +88,12 @@ bun test         # Run tests
 ## Important Files
 
 - `src/tui/component/dialog-new.tsx` - New session dialog with tool selection
+- `src/tui/component/dialog-settings.tsx` - Settings dialog (press `c` in home screen)
 - `src/tui/routes/home.tsx` - Main home screen with session list
 - `src/core/session.ts` - Session creation and lifecycle
+- `src/core/config.ts` - App configuration (`~/.agent-view/config.json`)
 - `src/core/git.ts` - Git worktree operations
+
+## Settings Dialog Convention
+
+When adding a new feature that has user-facing configuration (i.e. a new field in `AppConfig` in `src/core/config.ts`), you **must** also expose it in the TUI settings dialog at `src/tui/component/dialog-settings.tsx`. This ensures all config is discoverable via the `c` keybind on the home screen, not just via manual config.json editing. Follow the existing pattern: add an entry to the `options` array in `showSettingsList()` and a corresponding `show*()` method that uses `DialogSelect`.

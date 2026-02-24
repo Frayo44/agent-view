@@ -17,6 +17,7 @@ import { DialogRename } from "@tui/component/dialog-rename"
 import { DialogGroup } from "@tui/component/dialog-group"
 import { DialogMove } from "@tui/component/dialog-move"
 import { DialogShortcuts } from "@tui/component/dialog-shortcuts"
+import { DialogSettings } from "@tui/component/dialog-settings"
 import { getShortcuts } from "@/core/config"
 import { executeShortcut, getShortcutGroupPath } from "@/core/shortcut"
 import { useKeybind } from "@tui/context/keybind"
@@ -85,6 +86,19 @@ export function Home() {
 
   const shortcuts = createMemo(() => getShortcuts())
   const updateInfo = () => kv.get<{ current: string; latest: string } | null>("updateInfo", null)
+
+  // Drain auto-hibernated notifications periodically
+  const autoHibernateInterval = setInterval(() => {
+    const items = sync.session.drainAutoHibernated()
+    for (const item of items) {
+      toast.show({
+        message: `Auto-hibernated ${item.title} (idle ${item.idleMinutes >= 60 ? `${Math.round(item.idleMinutes / 60)}h` : `${item.idleMinutes}m`})`,
+        variant: "info",
+        duration: 4000
+      })
+    }
+  }, 1000)
+  onCleanup(() => clearInterval(autoHibernateInterval))
 
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [previewContent, setPreviewContent] = createSignal<string>("")
@@ -258,8 +272,8 @@ export function Home() {
       return
     }
 
-    // If session is stopped, offer to resume or restart
-    if (session.status === "stopped") {
+    // If session is stopped or hibernated, offer to resume or restart
+    if (session.status === "stopped" || session.status === "hibernated") {
       const isClaudeWithSession = session.tool === "claude" && session.toolData?.claudeSessionId
       const options = [
         ...(isClaudeWithSession
@@ -270,7 +284,7 @@ export function Home() {
 
       dialog.replace(() => (
         <DialogSelect
-          title={`"${session.title}" is stopped`}
+          title={`"${session.title}" is ${session.status}`}
           options={options}
           onSelect={async (opt) => {
             dialog.clear()
@@ -386,6 +400,16 @@ export function Home() {
       sync.refresh()
     } catch (err) {
       log("Fork error:", err)
+      toast.error(err as Error)
+    }
+  }
+
+  async function handleHibernate(session: Session) {
+    try {
+      await sync.session.hibernate(session.id)
+      toast.show({ message: `Hibernated ${session.title}`, variant: "success", duration: 2000 })
+      sync.refresh()
+    } catch (err) {
       toast.error(err as Error)
     }
   }
@@ -520,6 +544,23 @@ export function Home() {
       return
     }
 
+    // z to hibernate session
+    if (evt.name === "z" && !evt.shift && !evt.ctrl) {
+      const session = selectedSession()
+      if (session) {
+        if (session.tool !== "claude" || !session.toolData?.claudeSessionId) {
+          toast.show({ message: "Only Claude sessions with a session ID can be hibernated", variant: "error", duration: 2000 })
+          return
+        }
+        if (session.status === "stopped" || session.status === "hibernated") {
+          toast.show({ message: "Session is already stopped/hibernated", variant: "error", duration: 2000 })
+          return
+        }
+        handleHibernate(session)
+      }
+      return
+    }
+
     // u to open update dialog
     if (evt.name === "u" && !evt.shift && !evt.ctrl) {
       const info = updateInfo()
@@ -532,6 +573,12 @@ export function Home() {
     // s to open shortcuts dialog
     if (evt.name === "s" && !evt.shift && !evt.ctrl) {
       dialog.push(() => <DialogShortcuts />)
+      return
+    }
+
+    // c to open settings dialog
+    if (evt.name === "c" && !evt.shift && !evt.ctrl) {
+      dialog.push(() => <DialogSettings />)
       return
     }
 
@@ -630,6 +677,7 @@ export function Home() {
         case "running": return theme.success
         case "waiting": return theme.warning
         case "error": return theme.error
+        case "hibernated": return theme.secondary
         default: return theme.textMuted
       }
     })
@@ -679,16 +727,21 @@ export function Home() {
           <text> </text>
         </Show>
 
-        {/* Memory */}
-        <Show when={sync.session.getMemoryMB(props.session.id)}>
-          {(mb: () => number) => (
-            <>
-              <text fg={isSelected() ? theme.selectedListItemText : theme.textMuted}>
-                {mb() >= 1024 ? `${(mb() / 1024).toFixed(1)}G` : `${mb()}M`}
-              </text>
-              <text> </text>
-            </>
-          )}
+        {/* Memory or hibernation indicator */}
+        <Show when={props.session.status === "hibernated"} fallback={
+          <Show when={sync.session.getMemoryMB(props.session.id)}>
+            {(mb: () => number) => (
+              <>
+                <text fg={isSelected() ? theme.selectedListItemText : theme.textMuted}>
+                  {mb() >= 1024 ? `${(mb() / 1024).toFixed(1)}G` : `${mb()}M`}
+                </text>
+                <text> </text>
+              </>
+            )}
+          </Show>
+        }>
+          <text>{"\uD83D\uDE34"}</text>
+          <text> </text>
         </Show>
 
         {/* Time */}
@@ -709,6 +762,7 @@ export function Home() {
         case "running": return theme.success
         case "waiting": return theme.warning
         case "error": return theme.error
+        case "hibernated": return theme.secondary
         default: return theme.textMuted
       }
     })
@@ -949,8 +1003,16 @@ export function Home() {
           <text fg={theme.textMuted}>fork</text>
         </box>
         <box flexDirection="column" alignItems="center">
+          <text fg={theme.text}>z</text>
+          <text fg={theme.textMuted}>hibernate</text>
+        </box>
+        <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>s</text>
           <text fg={theme.textMuted}>shortcuts</text>
+        </box>
+        <box flexDirection="column" alignItems="center">
+          <text fg={theme.text}>c</text>
+          <text fg={theme.textMuted}>settings</text>
         </box>
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>1-9</text>

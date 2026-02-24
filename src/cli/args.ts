@@ -16,6 +16,9 @@ export type CLICommand =
   | { type: "status"; id: string }
   | { type: "info"; id: string; json: boolean }
   | { type: "send"; id: string; message: string }
+  | { type: "hibernate"; id: string }
+  | { type: "wake"; id: string }
+  | { type: "auto-hibernate"; minutes?: number }
 
 export interface NewOptions {
   path: string
@@ -166,6 +169,37 @@ export function parseArgs(argv: string[]): CLICommand {
     return { type: "info", id, json: getFlag(args, "--json") }
   }
 
+  if (getFlag(args, "--hibernate")) {
+    const id = getFlagValue(args, "--hibernate")
+    if (!id) {
+      process.stderr.write("Error: --hibernate requires a session ID or title\n")
+      process.exit(2)
+    }
+    return { type: "hibernate", id }
+  }
+
+  if (getFlag(args, "--wake")) {
+    const id = getFlagValue(args, "--wake")
+    if (!id) {
+      process.stderr.write("Error: --wake requires a session ID or title\n")
+      process.exit(2)
+    }
+    return { type: "wake", id }
+  }
+
+  if (getFlag(args, "--auto-hibernate")) {
+    const value = getFlagValue(args, "--auto-hibernate")
+    if (value !== undefined) {
+      const minutes = parseInt(value, 10)
+      if (isNaN(minutes) || minutes < 0) {
+        process.stderr.write("Error: --auto-hibernate requires a non-negative number of minutes\n")
+        process.exit(2)
+      }
+      return { type: "auto-hibernate", minutes }
+    }
+    return { type: "auto-hibernate" }
+  }
+
   // Fallback: TUI mode with optional --light
   const mode = getFlag(args, "--light") ? "light" : "dark"
   return { type: "tui", mode }
@@ -186,6 +220,9 @@ Usage:
   av --status <id>                Get session status
   av --info <id> [--json]         Get session details
   av --send <id> <message>        Send instructions to a running session
+  av --hibernate <id>             Hibernate a session (Claude-only)
+  av --wake <id>                  Resume a hibernated session
+  av --auto-hibernate [minutes]   Set/show auto-hibernate timeout (0 to disable)
 
 TUI Options:
   --light                         Use light mode theme
@@ -204,7 +241,7 @@ New Session (--new, -n):
 
 List Sessions (--list, -l):
   --group <path>                  Filter by group
-  --status <status>               Filter: running|waiting|idle|stopped|error
+  --status <status>               Filter: running|waiting|idle|stopped|error|hibernated
   --json                          Output as JSON
 
 Delete Session (--delete):

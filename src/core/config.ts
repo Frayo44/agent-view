@@ -19,6 +19,8 @@ export interface AppConfig {
   worktree?: WorktreeConfig
   defaultGroup?: string
   shortcuts?: Shortcut[]
+  autoHibernateMinutes?: number   // 0 = disabled, default 0
+  autoHibernatePrompted?: boolean // true = user has seen the prompt
 }
 
 const CONFIG_DIR = path.join(os.homedir(), ".agent-view")

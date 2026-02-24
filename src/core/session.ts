@@ -13,6 +13,7 @@ import path from "path"
 import fs from "fs"
 import os from "os"
 import { buildForkCommand, buildClaudeCommand, copySessionToProject, sessionFileExists } from "./claude"
+import { getConfig } from "./config"
 
 const logFile = path.join(os.homedir(), ".agent-orchestrator", "debug.log")
 function log(...args: unknown[]) {
@@ -42,9 +43,16 @@ function generateTitle(): string {
 export class SessionManager {
   private refreshInterval: NodeJS.Timeout | null = null
   private memoryMap = new Map<string, number>() // sessionId → KB
+  private _recentAutoHibernated: { id: string; title: string; idleMinutes: number }[] = []
 
   getMemoryKB(sessionId: string): number | undefined {
     return this.memoryMap.get(sessionId)
+  }
+
+  drainAutoHibernated(): { id: string; title: string; idleMinutes: number }[] {
+    const items = this._recentAutoHibernated
+    this._recentAutoHibernated = []
+    return items
   }
 
   startRefreshLoop(intervalMs = 500): void {
@@ -68,13 +76,21 @@ export class SessionManager {
     const storage = getStorage()
     const sessions = storage.loadSessions()
 
+    const config = getConfig()
+    const autoHibernateMs = (config.autoHibernateMinutes || 0) * 60 * 1000
+
     for (const session of sessions) {
       if (!session.tmuxSession) continue
 
+      // Skip hibernated sessions — they have no tmux process
+      if (session.status === "hibernated") continue
+
       const exists = tmux.sessionExists(session.tmuxSession)
       if (!exists) {
-        // Session was killed externally
-        storage.writeStatus(session.id, "stopped", session.tool)
+        // Session was killed externally — don't overwrite hibernated status
+        if (session.status !== "hibernated") {
+          storage.writeStatus(session.id, "stopped", session.tool)
+        }
         continue
       }
 
@@ -102,6 +118,26 @@ export class SessionManager {
         } else {
           // No recent activity and no waiting prompt - idle
           storage.writeStatus(session.id, "idle", session.tool)
+
+          // Auto-hibernate: if idle too long, hibernate Claude sessions
+          if (autoHibernateMs > 0 && session.tool === "claude" && session.toolData?.claudeSessionId) {
+            const lastActivity = tmux.getSessionActivity(session.tmuxSession)
+            if (lastActivity > 0) {
+              const idleMs = Date.now() - lastActivity * 1000
+              if (idleMs >= autoHibernateMs) {
+                try {
+                  await this.hibernate(session.id)
+                  this._recentAutoHibernated.push({
+                    id: session.id,
+                    title: session.title,
+                    idleMinutes: Math.round(idleMs / 60000)
+                  })
+                } catch {
+                  // Ignore hibernate failures during auto-hibernate
+                }
+              }
+            }
+          }
         }
       } catch {
         // Fallback: use activity-based detection if capture fails
@@ -522,6 +558,28 @@ export class SessionManager {
     storage.touch()
   }
 
+  /**
+   * Hibernate a session (kill tmux to free memory, keep record for resume)
+   * Only works for Claude sessions with a claudeSessionId.
+   */
+  async hibernate(sessionId: string): Promise<void> {
+    const storage = getStorage()
+    const session = storage.getSession(sessionId)
+
+    if (!session) return
+
+    if (session.tool !== "claude" || !session.toolData?.claudeSessionId) {
+      throw new Error("Only Claude sessions with a session ID can be hibernated")
+    }
+
+    if (session.tmuxSession) {
+      await tmux.killSession(session.tmuxSession)
+    }
+
+    storage.writeStatus(sessionId, "hibernated", session.tool)
+    storage.touch()
+  }
+
   async sendMessage(sessionId: string, message: string): Promise<void> {
     const storage = getStorage()
     const session = storage.getSession(sessionId)
@@ -600,6 +658,7 @@ export class SessionManager {
     idle: Session[]
     stopped: Session[]
     error: Session[]
+    hibernated: Session[]
   } {
     const sessions = this.list()
     return {
@@ -607,7 +666,8 @@ export class SessionManager {
       waiting: sessions.filter((s) => s.status === "waiting"),
       idle: sessions.filter((s) => s.status === "idle"),
       stopped: sessions.filter((s) => s.status === "stopped"),
-      error: sessions.filter((s) => s.status === "error")
+      error: sessions.filter((s) => s.status === "error"),
+      hibernated: sessions.filter((s) => s.status === "hibernated")
     }
   }
 

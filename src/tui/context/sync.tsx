@@ -96,7 +96,8 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             waiting: store.sessions.filter((s) => s.status === "waiting"),
             idle: store.sessions.filter((s) => s.status === "idle"),
             stopped: store.sessions.filter((s) => s.status === "stopped"),
-            error: store.sessions.filter((s) => s.status === "error")
+            error: store.sessions.filter((s) => s.status === "error"),
+            hibernated: store.sessions.filter((s) => s.status === "hibernated")
           }
         },
         byGroup(): Map<string, Session[]> {
@@ -131,6 +132,10 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           await manager.stop(id)
           refresh()
         },
+        async hibernate(id: string): Promise<void> {
+          await manager.hibernate(id)
+          refresh()
+        },
         async fork(options: Parameters<typeof manager.fork>[0]): Promise<Session> {
           const session = await manager.fork(options)
           refresh()
@@ -151,6 +156,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           const kb = memoryStore[id]
           if (kb === undefined || kb <= 0) return undefined
           return Math.round(kb / 1024)
+        },
+        drainAutoHibernated() {
+          return manager.drainAutoHibernated()
         }
       },
       group: {

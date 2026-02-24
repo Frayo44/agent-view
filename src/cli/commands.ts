@@ -13,7 +13,7 @@ import { existsSync } from "fs"
 import path from "path"
 
 const VALID_TOOLS = ["claude", "opencode", "gemini", "codex", "custom", "shell"]
-const VALID_STATUSES = ["running", "waiting", "idle", "stopped", "error"]
+const VALID_STATUSES = ["running", "waiting", "idle", "stopped", "error", "hibernated"]
 
 function resolveSessionId(idOrTitle: string): string | null {
   const storage = getStorage()
@@ -60,6 +60,7 @@ function statusColor(status: string): string {
     case "idle": return "\x1b[34m"     // blue
     case "error": return "\x1b[31m"    // red
     case "stopped": return "\x1b[90m"  // gray
+    case "hibernated": return "\x1b[36m" // cyan
     default: return ""
   }
 }
@@ -392,5 +393,74 @@ export async function cmdInfo(id: string, json: boolean): Promise<void> {
   }
   if (session.parentSessionId) {
     console.log(`Parent session:  ${session.parentSessionId}`)
+  }
+}
+
+export async function cmdHibernate(id: string): Promise<void> {
+  const resolvedId = resolveSessionId(id)
+  if (!resolvedId) {
+    process.stderr.write(`Error: Session '${id}' not found\n`)
+    process.exit(3)
+  }
+
+  const session = getStorage().getSession(resolvedId)
+  if (!session) {
+    process.stderr.write(`Error: Session '${id}' not found\n`)
+    process.exit(3)
+  }
+
+  if (session.tool !== "claude" || !session.toolData?.claudeSessionId) {
+    process.stderr.write(`Error: Only Claude sessions with a session ID can be hibernated\n`)
+    process.exit(1)
+  }
+
+  const manager = new SessionManager()
+  await manager.hibernate(resolvedId)
+  console.log(`Hibernated session: ${session.title} (${resolvedId})`)
+}
+
+export async function cmdWake(id: string): Promise<void> {
+  const resolvedId = resolveSessionId(id)
+  if (!resolvedId) {
+    process.stderr.write(`Error: Session '${id}' not found\n`)
+    process.exit(3)
+  }
+
+  const session = getStorage().getSession(resolvedId)
+  if (!session) {
+    process.stderr.write(`Error: Session '${id}' not found\n`)
+    process.exit(3)
+  }
+
+  if (session.status !== "hibernated") {
+    process.stderr.write(`Error: Session '${session.title}' is not hibernated (status: ${session.status})\n`)
+    process.exit(1)
+  }
+
+  const manager = new SessionManager()
+  const resumed = await manager.resume(resolvedId)
+  console.log(`Woke session: ${resumed.title} (${resolvedId})`)
+  console.log(`Tmux session: ${resumed.tmuxSession}`)
+}
+
+export async function cmdAutoHibernate(minutes?: number): Promise<void> {
+  const { loadConfig, saveConfig } = await import("../core/config")
+  const config = await loadConfig()
+
+  if (minutes === undefined) {
+    const current = config.autoHibernateMinutes || 0
+    if (current === 0) {
+      console.log("Auto-hibernate: disabled")
+    } else {
+      console.log(`Auto-hibernate: ${current} minutes`)
+    }
+    return
+  }
+
+  await saveConfig({ ...config, autoHibernateMinutes: minutes, autoHibernatePrompted: true })
+  if (minutes === 0) {
+    console.log("Auto-hibernate disabled")
+  } else {
+    console.log(`Auto-hibernate set to ${minutes} minutes`)
   }
 }

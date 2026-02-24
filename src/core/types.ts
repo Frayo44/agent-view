@@ -9,6 +9,7 @@ export type SessionStatus =
   | "idle"        // Session exists but agent is not active
   | "error"       // Session has an error
   | "stopped"     // Session was explicitly stopped
+  | "hibernated"  // Paused to save memory, expected to resume
 
 export type Tool =
   | "claude"      // Claude Code
