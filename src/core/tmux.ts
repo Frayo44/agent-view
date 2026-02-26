@@ -199,6 +199,12 @@ export async function createSession(options: {
     await execAsync(tmuxCmd(`set-option -t "${options.name}" allow-rename off`))
   }
 
+  // Unset Claude Code env vars that may be baked into the tmux server's
+  // global environment (if the server was first started from a Claude Code context)
+  for (const v of ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"]) {
+    await execAsync(tmuxCmd(`set-environment -t "${options.name}" -r ${v}`)).catch(() => {})
+  }
+
   const envVars = options.env || {}
   for (const [key, value] of Object.entries(envVars)) {
     await execAsync(tmuxCmd(`set-environment -t "${options.name}" ${key} "${value}"`))
