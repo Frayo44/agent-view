@@ -204,6 +204,11 @@ export async function createSession(options: {
     await execAsync(tmuxCmd(`set-environment -t "${options.name}" ${key} "${value}"`))
   }
 
+  // Unset Claude Code env vars inherited by the shell from the tmux server
+  // process (which may have been started from a Claude Code context).
+  // Must be sent to the shell directly since set-environment -r is too late.
+  await execAsync(tmuxCmd(`send-keys -t "${options.name}" "unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" Enter`))
+
   if (options.command) {
     let cmdToSend = options.command
 
