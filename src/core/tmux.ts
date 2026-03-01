@@ -199,11 +199,9 @@ export async function createSession(options: {
     await execAsync(tmuxCmd(`set-option -t "${options.name}" allow-rename off`))
   }
 
-  // Unset Claude Code env vars that may be baked into the tmux server's
+  // Unset CLAUDECODE env var that may be baked into the tmux server's
   // global environment (if the server was first started from a Claude Code context)
-  for (const v of ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"]) {
-    await execAsync(tmuxCmd(`set-environment -t "${options.name}" -r ${v}`)).catch(() => {})
-  }
+  await execAsync(tmuxCmd(`set-environment -t "${options.name}" -r CLAUDECODE`)).catch(() => {})
 
   const envVars = options.env || {}
   for (const [key, value] of Object.entries(envVars)) {
@@ -213,7 +211,7 @@ export async function createSession(options: {
   // Unset Claude Code env vars inherited by the shell from the tmux server
   // process (which may have been started from a Claude Code context).
   // Must be sent to the shell directly since set-environment -r is too late.
-  await execAsync(tmuxCmd(`send-keys -t "${options.name}" "unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" Enter`))
+  await execAsync(tmuxCmd(`send-keys -t "${options.name}" "unset CLAUDECODE" Enter`))
 
   if (options.command) {
     let cmdToSend = options.command
