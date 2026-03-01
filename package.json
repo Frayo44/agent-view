@@ -12,6 +12,7 @@
     "build": "bun run scripts/build.ts",
     "compile": "bun run scripts/compile.ts",
     "compile:all": "bun run scripts/compile.ts --all",
+    "bump": "bun run scripts/bump.ts",
     "release": "bun run scripts/release.ts",
     "dev": "bun run scripts/build.ts && bun run dist/index.js",
     "start": "bun run dist/index.js",
