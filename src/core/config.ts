@@ -6,7 +6,7 @@
 import * as path from "path"
 import * as os from "os"
 import * as fs from "fs/promises"
-import type { Tool, Shortcut } from "./types"
+import type { Tool, Shortcut, Recent } from "./types"
 
 export interface WorktreeConfig {
   defaultBaseBranch?: string
@@ -19,6 +19,7 @@ export interface AppConfig {
   worktree?: WorktreeConfig
   defaultGroup?: string
   shortcuts?: Shortcut[]
+  recents?: Recent[]
   autoHibernateMinutes?: number   // 0 = disabled, default 0
   autoHibernatePrompted?: boolean // true = user has seen the prompt
 }
@@ -34,7 +35,8 @@ const DEFAULT_CONFIG: AppConfig = {
     autoCleanup: true
   },
   defaultGroup: "default",
-  shortcuts: []
+  shortcuts: [],
+  recents: []
 }
 
 // Cached config for sync access
@@ -64,7 +66,8 @@ export async function loadConfig(): Promise<AppConfig> {
         ...parsed.worktree
       },
       // Shortcuts array is replaced entirely, not merged with defaults
-      shortcuts: parsed.shortcuts || []
+      shortcuts: parsed.shortcuts || [],
+      recents: parsed.recents || []
     }
 
     return cachedConfig
@@ -85,6 +88,13 @@ export async function loadConfig(): Promise<AppConfig> {
  */
 export function getShortcuts(): Shortcut[] {
   return cachedConfig.shortcuts || []
+}
+
+/**
+ * Get recents from the cached config
+ */
+export function getRecents(): Recent[] {
+  return cachedConfig.recents || []
 }
 
 /**

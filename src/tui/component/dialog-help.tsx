@@ -54,6 +54,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Other",
     shortcuts: [
       { key: "s", description: "Session shortcuts" },
+      { key: "o", description: "Open recent" },
       { key: "c", description: "Settings" },
       { key: "u", description: "Update (when available)" },
       { key: "?", description: "Show this help" },

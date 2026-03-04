@@ -115,6 +115,13 @@ export interface Shortcut {
   keybind?: string                // e.g., "1", "2", "<leader>w", "ctrl+shift+1"
 }
 
+export interface Recent {
+  name: string         // Display name
+  projectPath: string  // Working directory
+  tool: Tool           // Tool type
+  groupPath?: string   // Target group (created if missing)
+}
+
 export interface Config {
   theme?: string
   defaultTool?: Tool
@@ -123,6 +130,7 @@ export interface Config {
   mcpServers?: MCPServer[]
   keybinds?: Record<string, string>
   shortcuts?: Shortcut[]
+  recents?: Recent[]
 }
 
 export function getToolCommand(tool: Tool, customCmd?: string): string {

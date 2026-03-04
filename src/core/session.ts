@@ -4,7 +4,7 @@
  */
 
 import { getStorage } from "./storage"
-import type { Session, SessionCreateOptions, SessionForkOptions, SessionStatus, Tool } from "./types"
+import type { Session, SessionCreateOptions, SessionForkOptions, SessionStatus, Tool, Recent } from "./types"
 import { getToolCommand } from "./types"
 import * as tmux from "./tmux"
 import { removeWorktree } from "./git"
@@ -13,7 +13,7 @@ import path from "path"
 import fs from "fs"
 import os from "os"
 import { buildForkCommand, buildClaudeCommand, copySessionToProject, sessionFileExists } from "./claude"
-import { getConfig } from "./config"
+import { getConfig, saveConfig } from "./config"
 
 const logFile = path.join(os.homedir(), ".agent-orchestrator", "debug.log")
 function log(...args: unknown[]) {
@@ -250,7 +250,35 @@ export class SessionManager {
     storage.saveSession(session)
     storage.touch()
 
+    // Auto-save as recent for future quick access
+    await this.saveRecent(options)
+
     return session
+  }
+
+  private async saveRecent(options: SessionCreateOptions): Promise<void> {
+    const config = getConfig()
+    const recents = [...(config.recents || [])]
+
+    const newRecent: Recent = {
+      name: options.title || "untitled",
+      projectPath: options.projectPath,
+      tool: options.tool,
+      groupPath: options.groupPath
+    }
+
+    // Dedupe by projectPath + tool
+    const existingIdx = recents.findIndex(r =>
+      r.projectPath === newRecent.projectPath && r.tool === newRecent.tool
+    )
+
+    if (existingIdx >= 0) {
+      recents[existingIdx] = newRecent  // Update name
+    } else {
+      recents.push(newRecent)
+    }
+
+    await saveConfig({ ...config, recents })
   }
 
   /**

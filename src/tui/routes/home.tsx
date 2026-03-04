@@ -17,6 +17,7 @@ import { DialogRename } from "@tui/component/dialog-rename"
 import { DialogGroup } from "@tui/component/dialog-group"
 import { DialogMove } from "@tui/component/dialog-move"
 import { DialogShortcuts } from "@tui/component/dialog-shortcuts"
+import { DialogRecents } from "@tui/component/dialog-recents"
 import { DialogSettings } from "@tui/component/dialog-settings"
 import { DialogHelp } from "@tui/component/dialog-help"
 import { getShortcuts } from "@/core/config"
@@ -591,6 +592,12 @@ export function Home() {
       return
     }
 
+    // o to open recents dialog
+    if (evt.name === "o" && !evt.shift && !evt.ctrl) {
+      dialog.push(() => <DialogRecents />)
+      return
+    }
+
     // c to open settings dialog
     if (evt.name === "c" && !evt.shift && !evt.ctrl) {
       dialog.push(() => <DialogSettings />)
@@ -1026,6 +1033,10 @@ export function Home() {
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>z</text>
           <text fg={theme.textMuted}>hibernate</text>
+        </box>
+        <box flexDirection="column" alignItems="center">
+          <text fg={theme.text}>o</text>
+          <text fg={theme.textMuted}>recents</text>
         </box>
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>s</text>
