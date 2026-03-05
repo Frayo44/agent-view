@@ -16,7 +16,7 @@ import { DialogHeader } from "@tui/ui/dialog-header"
 import { DialogFooter } from "@tui/ui/dialog-footer"
 import { ActionButton } from "@tui/ui/action-button"
 import { attachSessionSync } from "@/core/tmux"
-import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists } from "@/core/git"
+import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists, copyClaudeDir } from "@/core/git"
 import { HistoryManager } from "@/core/history"
 import { getStorage } from "@/core/storage"
 import type { Tool, ClaudeSessionMode } from "@/core/types"
@@ -61,7 +61,7 @@ const TOOLS: { value: Tool; label: string; description: string }[] = [
   { value: "shell", label: "Shell", description: "Plain terminal session" }
 ]
 
-type FocusField = "title" | "tool" | "resumeSession" | "skipPermissions" | "customCommand" | "path" | "worktree" | "branch"
+type FocusField = "title" | "tool" | "resumeSession" | "skipPermissions" | "customCommand" | "path" | "worktree" | "branch" | "copyClaudeDir"
 
 export function DialogNew() {
   const dialog = useDialog()
@@ -103,6 +103,8 @@ export function DialogNew() {
   const [isInGitRepo, setIsInGitRepo] = createSignal(false)
   const [useBaseDevelop, setUseBaseDevelop] = createSignal(false)
   const [developExists, setDevelopExists] = createSignal(false)
+  const [claudeDirExists, setClaudeDirExists] = createSignal(false)
+  const [doCopyClaudeDir, setDoCopyClaudeDir] = createSignal(true)
 
   const storage = getStorage()
 
@@ -121,27 +123,32 @@ export function DialogNew() {
   })
 
   createEffect(async () => {
-    const path = projectPath()
+    const dir = projectPath()
     try {
-      const result = await isGitRepo(path)
+      const result = await isGitRepo(dir)
       setIsInGitRepo(result)
       if (!result) {
         setUseWorktree(false)
         setDevelopExists(false)
         setUseBaseDevelop(false)
+        setClaudeDirExists(false)
       } else {
-        const repoRoot = await getRepoRoot(path)
+        const repoRoot = await getRepoRoot(dir)
         const hasDevelop = await branchExists(repoRoot, "develop")
         setDevelopExists(hasDevelop)
         if (!hasDevelop) {
           setUseBaseDevelop(false)
         }
+        const hasClaude = existsSync(path.join(repoRoot, ".claude"))
+        setClaudeDirExists(hasClaude)
+        if (!hasClaude) setDoCopyClaudeDir(false)
       }
     } catch {
       setIsInGitRepo(false)
       setUseWorktree(false)
       setDevelopExists(false)
       setUseBaseDevelop(false)
+      setClaudeDirExists(false)
     }
   })
 
@@ -187,6 +194,9 @@ export function DialogNew() {
       fields.push("worktree")
       if (useWorktree()) {
         fields.push("branch")
+        if (claudeDirExists()) {
+          fields.push("copyClaudeDir")
+        }
       }
     }
     return fields
@@ -244,6 +254,9 @@ export function DialogNew() {
         const wtPath = generateWorktreePath(repoRoot, branchName)
 
         worktreePath = await createWorktree(repoRoot, branchName, wtPath, baseBranch)
+        if (doCopyClaudeDir() && claudeDirExists()) {
+          await copyClaudeDir(repoRoot, worktreePath)
+        }
         sessionProjectPath = worktreePath
         worktreeRepo = repoRoot
         worktreeBranchName = branchName
@@ -378,6 +391,12 @@ export function DialogNew() {
     if (focusedField() === "skipPermissions" && evt.name === "space") {
       evt.preventDefault()
       setSkipPermissions(!skipPermissions())
+      return
+    }
+
+    if (focusedField() === "copyClaudeDir" && evt.name === "space") {
+      evt.preventDefault()
+      setDoCopyClaudeDir(!doCopyClaudeDir())
       return
     }
   })
@@ -582,6 +601,26 @@ export function DialogNew() {
                   {useBaseDevelop() ? "[x]" : "[ ]"}
                 </text>
                 <text fg={theme.textMuted}>Base on develop</text>
+              </box>
+            </Show>
+
+            {/* Copy .claude directory toggle */}
+            <Show when={claudeDirExists()}>
+              <box
+                flexDirection="row"
+                gap={1}
+                paddingLeft={4}
+                onMouseUp={() => {
+                  setFocusedField("copyClaudeDir")
+                  setDoCopyClaudeDir(!doCopyClaudeDir())
+                }}
+              >
+                <text fg={focusedField() === "copyClaudeDir" ? theme.primary : theme.textMuted}>
+                  {doCopyClaudeDir() ? "[x]" : "[ ]"}
+                </text>
+                <text fg={focusedField() === "copyClaudeDir" ? theme.text : theme.textMuted}>
+                  Copy .claude directory
+                </text>
               </box>
             </Show>
           </Show>
