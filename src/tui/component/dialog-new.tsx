@@ -610,7 +610,7 @@ export function DialogNew() {
         onAction={handleCreate}
       />
 
-      <DialogFooter hint={creating() ? statusMessage() : "Tab | Enter: create"} />
+      <DialogFooter hint={creating() ? statusMessage() : (focusedField() === "path" || focusedField() === "branch") ? "↓↑ browse | Tab/→ select | Enter create" : "Tab | Enter: create"} />
     </box>
   )
 }
