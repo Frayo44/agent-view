@@ -684,11 +684,7 @@ export function Home() {
 
   function GroupHeader(props: { group: Group; index: number }) {
     const isSelected = createMemo(() => props.index === selectedIndex())
-    const sessionCount = createMemo(() => getGroupSessionCount(allSessions(), props.group.path))
     const statusSummary = createMemo(() => getGroupStatusSummary(allSessions(), props.group.path))
-
-    const item = createMemo(() => groupedItems()[props.index])
-    const groupIndex = createMemo(() => item()?.groupIndex)
 
     return (
       <box
@@ -730,20 +726,6 @@ export function Home() {
         <Show when={statusSummary().waiting > 0}>
           <text fg={isSelected() ? theme.selectedListItemText : theme.warning}>
             {STATUS_ICONS.waiting}{statusSummary().waiting}
-          </text>
-          <text> </text>
-        </Show>
-
-        {/* Session count */}
-        <text fg={isSelected() ? theme.selectedListItemText : theme.textMuted}>
-          ({sessionCount()})
-        </text>
-
-        {/* Hotkey hint */}
-        <Show when={groupIndex()}>
-          <text> </text>
-          <text fg={isSelected() ? theme.selectedListItemText : theme.textMuted}>
-            [{groupIndex()}]
           </text>
         </Show>
       </box>
@@ -1119,10 +1101,6 @@ export function Home() {
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>c</text>
           <text fg={theme.textMuted}>settings</text>
-        </box>
-        <box flexDirection="column" alignItems="center">
-          <text fg={theme.text}>1-9</text>
-          <text fg={theme.textMuted}>jump</text>
         </box>
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>q</text>
