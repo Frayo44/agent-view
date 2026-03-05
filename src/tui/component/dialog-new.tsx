@@ -10,6 +10,7 @@ import { useSync } from "@tui/context/sync"
 import { useRoute } from "@tui/context/route"
 import { useConfig } from "@tui/context/config"
 import { useDialog, scrollDialogBy, scrollDialogTo } from "@tui/ui/dialog"
+import { DialogSelect } from "@tui/ui/dialog-select"
 import { useToast } from "@tui/ui/toast"
 import { InputAutocomplete } from "@tui/ui/input-autocomplete"
 import { DialogHeader } from "@tui/ui/dialog-header"
@@ -192,7 +193,7 @@ export function DialogNew() {
     return fields
   }
 
-  async function handleCreate() {
+  async function doCreate() {
     if (creating()) return
     setCreating(true)
     setStatusMessage("Preparing...")
@@ -293,6 +294,36 @@ export function DialogNew() {
       setCreating(false)
       setStatusMessage("")
     }
+  }
+
+  function handleCreate() {
+    // Build summary lines for the confirmation dialog
+    const lines: string[] = []
+    lines.push(`Tool:   ${selectedTool()}`)
+    const t = title().trim()
+    lines.push(`Title:  ${t || "(auto-generated)"}`)
+    lines.push(`Path:   ${projectPath() || process.cwd()}`)
+    if (useWorktree()) {
+      const branch = worktreeBranch().trim()
+      lines.push(`Branch: ${branch || "(auto-generated)"}`)
+
+    }
+
+    dialog.push(() => (
+      <DialogSelect
+        title={`Create session?\n\n${lines.join("\n")}`}
+        options={[
+          { title: "✅ Confirm", value: "confirm" },
+          { title: "❌ Back", value: "back" },
+        ]}
+        onSelect={(opt) => {
+          dialog.pop()
+          if (opt.value === "confirm") {
+            doCreate()
+          }
+        }}
+      />
+    ))
   }
 
   useKeyboard((evt) => {
