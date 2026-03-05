@@ -834,6 +834,9 @@ export function Home() {
               <box flexDirection="row" gap={1}>
                 <text fg={statusColor()}>{STATUS_ICONS[s().status]}</text>
                 <text fg={statusColor()}>{s().status}</text>
+                <Show when={s().status === "waiting"}>
+                  <text fg={theme.warning}>  [y] confirm</text>
+                </Show>
               </box>
             </box>
 
