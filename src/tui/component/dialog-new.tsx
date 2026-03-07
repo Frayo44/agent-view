@@ -49,8 +49,8 @@ async function commandExists(cmd: string, cwd?: string): Promise<boolean> {
 }
 
 // History managers for autocomplete suggestions
-const projectPathHistory = new HistoryManager("dialog-new:project-paths", 30)
-const branchNameHistory = new HistoryManager("dialog-new:branch-names", 30)
+const projectPathHistory = new HistoryManager("dialog-new:project-paths", 15)
+const branchNameHistory = new HistoryManager("dialog-new:branch-names", 15)
 
 const TOOLS: { value: Tool; label: string; description: string }[] = [
   { value: "claude", label: "Claude Code", description: "Anthropic's Claude CLI" },

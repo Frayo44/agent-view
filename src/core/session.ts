@@ -14,6 +14,7 @@ import fs from "fs"
 import os from "os"
 import { buildForkCommand, buildClaudeCommand, copySessionToProject, sessionFileExists } from "./claude"
 import { getConfig, saveConfig } from "./config"
+import { addRecent } from "./recents"
 
 const logFile = path.join(os.homedir(), ".agent-orchestrator", "debug.log")
 function log(...args: unknown[]) {
@@ -258,7 +259,6 @@ export class SessionManager {
 
   private async saveRecent(options: SessionCreateOptions): Promise<void> {
     const config = getConfig()
-    const recents = [...(config.recents || [])]
 
     const newRecent: Recent = {
       name: options.title || "untitled",
@@ -267,17 +267,7 @@ export class SessionManager {
       groupPath: options.groupPath
     }
 
-    // Dedupe by projectPath + tool
-    const existingIdx = recents.findIndex(r =>
-      r.projectPath === newRecent.projectPath && r.tool === newRecent.tool
-    )
-
-    if (existingIdx >= 0) {
-      recents[existingIdx] = newRecent  // Update name
-    } else {
-      recents.push(newRecent)
-    }
-
+    const recents = addRecent(config.recents || [], newRecent)
     await saveConfig({ ...config, recents })
   }
 

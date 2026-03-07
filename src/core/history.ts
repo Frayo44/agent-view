@@ -9,7 +9,7 @@ import type { Storage } from "./storage"
 export class HistoryManager {
   constructor(
     private storageKey: string,
-    private maxItems: number = 30
+    private maxItems: number = 15
   ) {}
 
   getHistory(storage: Storage): string[] {
