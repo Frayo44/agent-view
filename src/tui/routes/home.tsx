@@ -20,6 +20,7 @@ import { DialogMove } from "@tui/component/dialog-move"
 import { DialogShortcuts } from "@tui/component/dialog-shortcuts"
 import { DialogRecents } from "@tui/component/dialog-recents"
 import { DialogSettings } from "@tui/component/dialog-settings"
+import { DialogNewRemote } from "@tui/component/dialog-new-remote"
 import { DialogHelp } from "@tui/component/dialog-help"
 import { getShortcuts } from "@/core/config"
 import { executeShortcut, getShortcutGroupPath } from "@/core/shortcut"
@@ -773,6 +774,12 @@ export function Home() {
     // ? to open help dialog
     if (evt.name === "?") {
       dialog.push(() => <DialogHelp />)
+      return
+    }
+
+    // N (Shift+n) to create new remote session
+    if (evt.name === "n" && evt.shift) {
+      dialog.push(() => <DialogNewRemote />)
       return
     }
 

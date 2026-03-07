@@ -229,6 +229,28 @@ export class RemoteManager {
   }
 
   /**
+   * Create a new session on a remote host
+   */
+  async createSession(remoteName: string, options: {
+    title?: string
+    projectPath: string
+    tool: string
+    group?: string
+    command?: string
+  }): Promise<{ success: boolean; error?: string }> {
+    const runner = this.getRunner(remoteName)
+    if (!runner) {
+      return { success: false, error: `Remote "${remoteName}" not found` }
+    }
+
+    const result = await runner.create(options)
+    if (result.success) {
+      this.clearCache()
+    }
+    return result
+  }
+
+  /**
    * Test connectivity to all remotes
    */
   async testAllConnections(): Promise<Map<string, { ok: boolean; error?: string }>> {

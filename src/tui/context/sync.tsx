@@ -8,6 +8,7 @@ import { createStore, produce } from "solid-js/store"
 import { getStorage } from "@/core/storage"
 import { getSessionManager } from "@/core/session"
 import { getRemoteManager } from "@/core/remote"
+import { getRemotes } from "@/core/config"
 import type { Session, Group, Config, RemoteSession } from "@/core/types"
 import { isRemoteSession } from "@/core/types"
 import { createSimpleContext } from "./helper"
@@ -261,6 +262,22 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         },
         attach(session: RemoteSession): void {
           remoteManager.attachSession(session)
+        },
+        async create(remoteName: string, options: {
+          title?: string
+          projectPath: string
+          tool: string
+          group?: string
+          command?: string
+        }): Promise<{ success: boolean; error?: string }> {
+          const result = await remoteManager.createSession(remoteName, options)
+          if (result.success) {
+            await refreshRemote(true)
+          }
+          return result
+        },
+        getRemoteNames(): string[] {
+          return Object.keys(getRemotes())
         }
       },
       refresh,

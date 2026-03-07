@@ -255,4 +255,34 @@ export class SSHRunner {
       return { ok: false, error: err.message }
     }
   }
+
+  /**
+   * Create a new session on the remote host
+   */
+  async create(options: {
+    title?: string
+    projectPath: string
+    tool: string
+    group?: string
+    command?: string
+  }): Promise<{ success: boolean; error?: string }> {
+    const args = ["--new", "--path", options.projectPath, "--tool", options.tool]
+
+    if (options.title) {
+      args.push("--title", options.title)
+    }
+    if (options.group) {
+      args.push("--group", options.group)
+    }
+    if (options.command && options.tool === "custom") {
+      args.push("--command", options.command)
+    }
+
+    try {
+      await this.run(args)
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  }
 }
