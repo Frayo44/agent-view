@@ -5,11 +5,10 @@
 
 import { useDialog } from "@tui/ui/dialog"
 import { DialogSelect } from "@tui/ui/dialog-select"
-import { DialogInput } from "@tui/ui/dialog-input"
 import { useToast } from "@tui/ui/toast"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
-import { getConfig, loadConfig, saveConfig, type RemoteConfig } from "@/core/config"
+import { getConfig, loadConfig, saveConfig } from "@/core/config"
 import type { Tool } from "@/core/types"
 
 const TOOL_OPTIONS: { title: string; value: Tool }[] = [
@@ -44,7 +43,6 @@ export function DialogSettings() {
   function showSettingsList() {
     const config = getConfig()
 
-    const remoteCount = Object.keys(config.remotes || {}).length
     const options = [
       {
         title: "Default tool",
@@ -66,11 +64,6 @@ export function DialogSettings() {
         value: "autoHibernate" as const,
         footer: formatHibernate(config.autoHibernateMinutes || 0),
       },
-      {
-        title: "Remote hosts",
-        value: "remotes" as const,
-        footer: remoteCount > 0 ? `${remoteCount} configured` : "none",
-      },
     ]
 
     dialog.replace(() => (
@@ -84,7 +77,6 @@ export function DialogSettings() {
             case "theme": return showTheme()
             case "defaultGroup": return showDefaultGroup()
             case "autoHibernate": return showAutoHibernate()
-            case "remotes": return showRemotes()
           }
         }}
       />
@@ -166,204 +158,6 @@ export function DialogSettings() {
         current={config.autoHibernateMinutes || 0}
         skipFilter
         onSelect={(opt) => updateConfig((c) => ({ ...c, autoHibernateMinutes: opt.value, autoHibernatePrompted: true }))}
-      />
-    ))
-  }
-
-  function showRemotes() {
-    const config = getConfig()
-    const remotes = config.remotes || {}
-    const remoteNames = Object.keys(remotes)
-
-    const options = [
-      { title: "+ Add remote", value: { action: "add" } as const },
-      ...remoteNames.map(name => ({
-        title: name,
-        value: { action: "edit" as const, name },
-        footer: remotes[name]!.host
-      }))
-    ]
-
-    dialog.replace(() => (
-      <DialogSelect
-        title="Remote hosts"
-        options={options}
-        skipFilter
-        onSelect={(opt) => {
-          if (opt.value.action === "add") {
-            showAddRemote()
-          } else {
-            showEditRemote(opt.value.name)
-          }
-        }}
-      />
-    ))
-  }
-
-  function showAddRemote() {
-    dialog.replace(() => (
-      <DialogInput
-        title="Add remote - Name"
-        placeholder="devbox"
-        onSubmit={(name) => {
-          if (!name.trim()) {
-            toast.show({ message: "Name is required", variant: "error", duration: 2000 })
-            showRemotes()
-            return
-          }
-          const config = getConfig()
-          if (config.remotes?.[name]) {
-            toast.show({ message: "Remote already exists", variant: "error", duration: 2000 })
-            showRemotes()
-            return
-          }
-          showAddRemoteHost(name.trim())
-        }}
-      />
-    ))
-  }
-
-  function showAddRemoteHost(name: string) {
-    dialog.replace(() => (
-      <DialogInput
-        title={`Add remote "${name}" - SSH host`}
-        placeholder="user@hostname"
-        onSubmit={(host) => {
-          if (!host.trim()) {
-            toast.show({ message: "Host is required", variant: "error", duration: 2000 })
-            showRemotes()
-            return
-          }
-          showAddRemoteAvPath(name, host.trim())
-        }}
-      />
-    ))
-  }
-
-  function showAddRemoteAvPath(name: string, host: string) {
-    dialog.replace(() => (
-      <DialogInput
-        title={`Add remote "${name}" - av path (optional)`}
-        placeholder="av"
-        onSubmit={async (avPath) => {
-          const config = await loadConfig()
-          const remotes = { ...config.remotes }
-          remotes[name] = {
-            host,
-            avPath: avPath.trim() || undefined
-          }
-          await saveConfig({ ...config, remotes })
-          toast.show({ message: `Added remote "${name}"`, variant: "success", duration: 2000 })
-          sync.refreshRemote()
-          showRemotes()
-        }}
-      />
-    ))
-  }
-
-  function showEditRemote(name: string) {
-    const config = getConfig()
-    const remote = config.remotes?.[name]
-    if (!remote) {
-      showRemotes()
-      return
-    }
-
-    const options = [
-      { title: "Edit host", value: "host" as const, footer: remote.host },
-      { title: "Edit av path", value: "avPath" as const, footer: remote.avPath || "av" },
-      { title: "Remove", value: "remove" as const },
-      { title: "Back", value: "back" as const },
-    ]
-
-    dialog.replace(() => (
-      <DialogSelect
-        title={`Remote: ${name}`}
-        options={options}
-        skipFilter
-        onSelect={(opt) => {
-          switch (opt.value) {
-            case "host":
-              showEditRemoteHost(name, remote)
-              break
-            case "avPath":
-              showEditRemoteAvPath(name, remote)
-              break
-            case "remove":
-              showRemoveRemote(name)
-              break
-            case "back":
-              showRemotes()
-              break
-          }
-        }}
-      />
-    ))
-  }
-
-  function showEditRemoteHost(name: string, remote: RemoteConfig) {
-    dialog.replace(() => (
-      <DialogInput
-        title={`Edit "${name}" - SSH host`}
-        placeholder={remote.host}
-        initialValue={remote.host}
-        onSubmit={async (host) => {
-          if (!host.trim()) {
-            toast.show({ message: "Host is required", variant: "error", duration: 2000 })
-            showEditRemote(name)
-            return
-          }
-          const config = await loadConfig()
-          const remotes = { ...config.remotes }
-          remotes[name] = { ...remote, host: host.trim() }
-          await saveConfig({ ...config, remotes })
-          toast.show({ message: "Host updated", variant: "success", duration: 1500 })
-          sync.refreshRemote()
-          showEditRemote(name)
-        }}
-      />
-    ))
-  }
-
-  function showEditRemoteAvPath(name: string, remote: RemoteConfig) {
-    dialog.replace(() => (
-      <DialogInput
-        title={`Edit "${name}" - av path`}
-        placeholder="av"
-        initialValue={remote.avPath || "av"}
-        onSubmit={async (avPath) => {
-          const config = await loadConfig()
-          const remotes = { ...config.remotes }
-          remotes[name] = { ...remote, avPath: avPath.trim() || undefined }
-          await saveConfig({ ...config, remotes })
-          toast.show({ message: "av path updated", variant: "success", duration: 1500 })
-          sync.refreshRemote()
-          showEditRemote(name)
-        }}
-      />
-    ))
-  }
-
-  function showRemoveRemote(name: string) {
-    dialog.replace(() => (
-      <DialogSelect
-        title={`Remove remote "${name}"?`}
-        options={[
-          { title: "Remove", value: "remove" },
-          { title: "Cancel", value: "cancel" },
-        ]}
-        skipFilter
-        onSelect={async (opt) => {
-          if (opt.value === "remove") {
-            const config = await loadConfig()
-            const remotes = { ...config.remotes }
-            delete remotes[name]
-            await saveConfig({ ...config, remotes })
-            toast.show({ message: `Removed remote "${name}"`, variant: "info", duration: 2000 })
-            sync.refreshRemote()
-          }
-          showRemotes()
-        }}
       />
     ))
   }

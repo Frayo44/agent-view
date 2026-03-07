@@ -8,7 +8,6 @@ import { createStore, produce } from "solid-js/store"
 import { getStorage } from "@/core/storage"
 import { getSessionManager } from "@/core/session"
 import { getRemoteManager } from "@/core/remote"
-import { getRemotes } from "@/core/config"
 import type { Session, Group, Config, RemoteSession } from "@/core/types"
 import { isRemoteSession } from "@/core/types"
 import { createSimpleContext } from "./helper"
@@ -260,8 +259,8 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           await remoteManager.resumeSession(session)
           await refreshRemote(true)
         },
-        attach(session: RemoteSession): void {
-          remoteManager.attachSession(session)
+        attach(session: RemoteSession): boolean {
+          return remoteManager.attachSession(session)
         },
         async create(remoteName: string, options: {
           title?: string
@@ -276,10 +275,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           }
           return result
         },
-        getRemoteNames(): string[] {
-          return Object.keys(getRemotes())
-        }
-      },
+              },
       refresh,
       refreshRemote
     }

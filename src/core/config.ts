@@ -13,9 +13,11 @@ export interface WorktreeConfig {
   autoCleanup?: boolean
 }
 
-export interface RemoteConfig {
-  host: string           // SSH destination (e.g., "user@host")
-  avPath?: string        // Remote agent-view/av binary path (default: "av")
+export interface LastRemoteSession {
+  host: string
+  avPath: string
+  tool: string
+  projectPath: string
 }
 
 export interface AppConfig {
@@ -27,7 +29,7 @@ export interface AppConfig {
   recents?: Recent[]
   autoHibernateMinutes?: number   // 0 = disabled, default 0
   autoHibernatePrompted?: boolean // true = user has seen the prompt
-  remotes?: Record<string, RemoteConfig>  // Named remote hosts for SSH sessions
+  lastRemoteSession?: LastRemoteSession   // Last used remote session values
 }
 
 const CONFIG_DIR = path.join(os.homedir(), ".agent-view")
@@ -73,8 +75,7 @@ export async function loadConfig(): Promise<AppConfig> {
       },
       // Shortcuts array is replaced entirely, not merged with defaults
       shortcuts: parsed.shortcuts || [],
-      recents: parsed.recents || [],
-      remotes: parsed.remotes || {}
+      recents: parsed.recents || []
     }
 
     return cachedConfig
@@ -105,10 +106,18 @@ export function getRecents(): Recent[] {
 }
 
 /**
- * Get remotes from the cached config
+ * Get last remote session values
  */
-export function getRemotes(): Record<string, RemoteConfig> {
-  return cachedConfig.remotes || {}
+export function getLastRemoteSession(): LastRemoteSession | undefined {
+  return cachedConfig.lastRemoteSession
+}
+
+/**
+ * Save last remote session values
+ */
+export async function saveLastRemoteSession(session: LastRemoteSession): Promise<void> {
+  const config = await loadConfig()
+  await saveConfig({ ...config, lastRemoteSession: session })
 }
 
 /**

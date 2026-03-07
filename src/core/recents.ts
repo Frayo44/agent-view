@@ -15,11 +15,12 @@ const MAX_RECENTS = 15
 export function addRecent(recents: Recent[], newRecent: Recent): Recent[] {
   const list = [...recents]
 
-  // Dedupe by projectPath + tool + name (allows same folder with different names)
+  // Dedupe by projectPath + tool + name + remoteHost (allows same folder with different names)
   const existingIdx = list.findIndex(r =>
     r.projectPath === newRecent.projectPath &&
     r.tool === newRecent.tool &&
-    r.name === newRecent.name
+    r.name === newRecent.name &&
+    r.remoteHost === newRecent.remoteHost
   )
 
   // Remove existing if found, then prepend (most recent first)

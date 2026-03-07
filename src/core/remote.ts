@@ -3,7 +3,7 @@
  * Coordinates fetching and managing sessions across multiple remote hosts
  */
 
-import { getRemotes, type RemoteConfig } from "./config"
+import { getLastRemoteSession } from "./config"
 import { SSHRunner } from "./ssh"
 import type { RemoteSession } from "./types"
 import path from "path"
@@ -23,64 +23,44 @@ export class RemoteManager {
   private fetchPromise: Promise<RemoteSession[]> | null = null
 
   /**
-   * Get or create SSH runners for all configured remotes
+   * Get SSH runners for known remote hosts
    */
   getRunners(): SSHRunner[] {
-    const remotes = getRemotes()
     const runners: SSHRunner[] = []
 
-    for (const [name, config] of Object.entries(remotes)) {
-      let runner = this.runners.get(name)
-
-      // Create new runner or update if config changed
-      if (!runner || runner["host"] !== config.host) {
-        runner = new SSHRunner(name, config.host, config.avPath)
-        this.runners.set(name, runner)
-      }
-
+    // Only use last session host if available
+    const lastSession = getLastRemoteSession()
+    if (lastSession) {
+      const runner = new SSHRunner(lastSession.host, lastSession.host, lastSession.avPath)
+      this.runners.set(lastSession.host, runner)
       runners.push(runner)
-    }
-
-    // Remove runners for deleted remotes
-    for (const name of this.runners.keys()) {
-      if (!(name in remotes)) {
-        this.runners.delete(name)
-      }
     }
 
     return runners
   }
 
   /**
-   * Get runner for a specific remote
+   * Get runner for a specific host
    */
-  getRunner(remoteName: string): SSHRunner | null {
-    const remotes = getRemotes()
-    const config = remotes[remoteName]
+  getRunner(host: string): SSHRunner | null {
+    // Check last remote session for avPath
+    const lastSession = getLastRemoteSession()
+    const avPath = (lastSession && lastSession.host === host) ? lastSession.avPath : "av"
 
-    if (!config) {
-      return null
-    }
-
-    let runner = this.runners.get(remoteName)
-    if (!runner) {
-      runner = new SSHRunner(remoteName, config.host, config.avPath)
-      this.runners.set(remoteName, runner)
-    }
-
+    const runner = new SSHRunner(host, host, avPath)
+    this.runners.set(host, runner)
     return runner
   }
 
   /**
-   * Fetch sessions from all configured remotes in parallel
+   * Fetch sessions from known remote hosts
    * Uses caching to avoid excessive SSH connections
    */
   async fetchAllSessions(forceRefresh = false): Promise<RemoteSession[]> {
-    const remotes = getRemotes()
-    const remoteNames = Object.keys(remotes)
+    const runners = this.getRunners()
 
-    // No remotes configured
-    if (remoteNames.length === 0) {
+    // No known remote hosts
+    if (runners.length === 0) {
       this.cachedSessions = []
       return []
     }
@@ -219,13 +199,14 @@ export class RemoteManager {
 
   /**
    * Attach to a remote session
+   * Returns true if Ctrl+L (session list) was requested
    */
-  attachSession(session: RemoteSession): void {
+  attachSession(session: RemoteSession): boolean {
     const runner = this.getRunner(session.remoteName)
     if (!runner) {
       throw new Error(`Remote "${session.remoteName}" not found`)
     }
-    runner.attachSync(session.id)
+    return runner.attachSync(session.id)
   }
 
   /**

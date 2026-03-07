@@ -12,6 +12,7 @@ import { useToast } from "@tui/ui/toast"
 import { DialogHeader } from "@tui/ui/dialog-header"
 import { DialogFooter } from "@tui/ui/dialog-footer"
 import { getRecents } from "@/core/config"
+import { SSHRunner } from "@/core/ssh"
 import { createListNavigation } from "@tui/util/navigation"
 import type { Recent } from "@/core/types"
 
@@ -66,34 +67,64 @@ export function DialogRecents() {
   async function handleExecute(recent: Recent) {
     if (executing()) return
     setExecuting(true)
-    setStatusMessage(`Creating session from ${recent.name}...`)
+
+    const isRemote = !!recent.remoteHost
+    setStatusMessage(`Creating ${isRemote ? "remote " : ""}session from ${recent.name}...`)
 
     try {
-      // Ensure group exists (create if missing)
-      if (recent.groupPath) {
-        const existingGroups = sync.group.list()
-        const groupExists = existingGroups.some(g => g.path === recent.groupPath)
-        if (!groupExists) {
-          sync.group.create(recent.groupPath)
+      if (isRemote) {
+        // Create remote session
+        const runner = new SSHRunner("remote", recent.remoteHost!, recent.remoteAvPath || "av")
+        const result = await runner.create({
+          title: recent.name,
+          projectPath: recent.projectPath,
+          tool: recent.tool,
+          command: recent.command,
+        })
+
+        if (result.success) {
+          toast.show({
+            message: `Created session on ${recent.remoteHost}`,
+            variant: "success",
+            duration: 2000
+          })
+          dialog.clear()
+          sync.refreshRemote()
+        } else {
+          toast.show({
+            message: result.error || "Failed to create remote session",
+            variant: "error",
+            duration: 3000
+          })
         }
+      } else {
+        // Create local session
+        // Ensure group exists (create if missing)
+        if (recent.groupPath) {
+          const existingGroups = sync.group.list()
+          const groupExists = existingGroups.some(g => g.path === recent.groupPath)
+          if (!groupExists) {
+            sync.group.create(recent.groupPath)
+          }
+        }
+
+        const session = await sync.session.create({
+          title: recent.name,
+          projectPath: recent.projectPath,
+          tool: recent.tool,
+          groupPath: recent.groupPath,
+          claudeOptions: { sessionMode: "new" }  // Always start fresh
+        })
+
+        toast.show({
+          message: `Created session '${session.title}'`,
+          variant: "success",
+          duration: 2000
+        })
+
+        dialog.clear()
+        sync.refresh()
       }
-
-      const session = await sync.session.create({
-        title: recent.name,
-        projectPath: recent.projectPath,
-        tool: recent.tool,
-        groupPath: recent.groupPath,
-        claudeOptions: { sessionMode: "new" }  // Always start fresh
-      })
-
-      toast.show({
-        message: `Created session '${session.title}'`,
-        variant: "success",
-        duration: 2000
-      })
-
-      dialog.clear()
-      sync.refresh()
     } catch (err) {
       toast.error(err as Error)
     } finally {
@@ -197,11 +228,18 @@ export function DialogRecents() {
                   {recent.name}
                 </text>
 
+                {/* Remote indicator */}
+                <Show when={recent.remoteHost}>
+                  <text fg={isSelected() ? theme.selectedListItemText : theme.info}>
+                    {" "}@{recent.remoteHost}
+                  </text>
+                </Show>
+
                 {/* Spacer */}
                 <text flexGrow={1}> </text>
 
                 {/* Group */}
-                <Show when={recent.groupPath}>
+                <Show when={recent.groupPath && !recent.remoteHost}>
                   <text fg={isSelected() ? theme.selectedListItemText : theme.textMuted}>
                     {recent.groupPath}
                   </text>

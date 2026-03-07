@@ -64,11 +64,22 @@ export class SSHRunner {
    * Execute an av command on the remote host
    */
   async run(args: string[]): Promise<string> {
+    // Build the remote command as a single quoted string
+    // This preserves arguments with spaces when passed through SSH
+    const quotedArgs = args.map(arg => {
+      // If arg contains spaces or special chars, quote it
+      if (arg.includes(" ") || arg.includes("'") || arg.includes('"')) {
+        // Escape single quotes and wrap in single quotes
+        return `'${arg.replace(/'/g, "'\\''")}'`
+      }
+      return arg
+    })
+    const remoteCommand = `${this.avPath} ${quotedArgs.join(" ")}`
+
     const sshArgs = [
       ...sshOptions(this.host),
       this.host,
-      this.avPath,
-      ...args
+      remoteCommand
     ]
 
     log(`Running SSH command: ssh ${sshArgs.join(" ")}`)
@@ -156,8 +167,9 @@ export class SSHRunner {
 
   /**
    * Attach synchronously (blocks until detach)
+   * Returns true if Ctrl+L (session list) was requested
    */
-  attachSync(sessionId: string): void {
+  attachSync(sessionId: string): boolean {
     log(`Attaching sync to remote session ${sessionId} on ${this.name}`)
     const { spawnSync } = require("child_process")
 
@@ -181,10 +193,25 @@ export class SSHRunner {
       env: process.env
     })
 
+    // Check if Ctrl+L was pressed on remote by checking signal file
+    let sessionListRequested = false
+    try {
+      const checkResult = spawnSync("ssh", [
+        ...sshOptions(this.host),
+        this.host,
+        "test -f /tmp/agent-view-session-list && rm /tmp/agent-view-session-list && echo yes"
+      ], { encoding: "utf-8", timeout: 5000 })
+      sessionListRequested = checkResult.stdout?.trim() === "yes"
+    } catch {
+      // Ignore errors
+    }
+
     // Clear screen and re-enter alternate buffer for TUI
     process.stdout.write("\x1b[2J\x1b[H")
     process.stdout.write("\x1b[?1049h")
     process.stdout.write("\x1b]0;Agent View\x07")
+
+    return sessionListRequested
   }
 
   /**

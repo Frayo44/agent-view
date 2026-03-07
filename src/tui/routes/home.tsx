@@ -120,10 +120,16 @@ export function Home() {
   // Calculate longest session/group title for dynamic panel sizing
   const longestTitleLen = createMemo(() => {
     const sessions = sync.session.list()
+    const remoteSessions = sync.remote.list()
     const groups = sync.group.list()
     let maxLen = 0
     for (const s of sessions) {
       if (s.title.length > maxLen) maxLen = s.title.length
+    }
+    for (const s of remoteSessions) {
+      // Remote sessions show "title @host" so include host length
+      const displayLen = s.title.length + s.remoteName.length + 2
+      if (displayLen > maxLen) maxLen = displayLen
     }
     for (const g of groups) {
       if (g.name.length > maxLen) maxLen = g.name.length
@@ -299,10 +305,11 @@ export function Home() {
   function doAttach(session: Session) {
     previewFetchAbort = true
     renderer.suspend()
+    let remoteSessionListRequested = false
     try {
       if (isRemoteSession(session)) {
-        // Attach to remote session via SSH
-        sync.remote.attach(session)
+        // Attach to remote session via SSH - returns true if Ctrl+L was pressed
+        remoteSessionListRequested = sync.remote.attach(session)
       } else {
         attachSessionSync(session.tmuxSession)
       }
@@ -312,13 +319,21 @@ export function Home() {
     renderer.resume()
     sync.refresh()
 
-    // Check if user pressed Ctrl+K to open command palette (local only)
-    if (!isRemoteSession(session) && wasCommandPaletteRequested()) {
-      command.open()
-    }
-    // Check if user pressed Ctrl+L to open session list (local only)
-    if (!isRemoteSession(session) && wasSessionListRequested()) {
-      dialog.replace(() => <DialogSessions />)
+    if (isRemoteSession(session)) {
+      sync.refreshRemote()
+      // Check if Ctrl+L was pressed on remote
+      if (remoteSessionListRequested) {
+        dialog.replace(() => <DialogSessions />)
+      }
+    } else {
+      // Check if user pressed Ctrl+K to open command palette (local only)
+      if (wasCommandPaletteRequested()) {
+        command.open()
+      }
+      // Check if user pressed Ctrl+L to open session list (local only)
+      if (wasSessionListRequested()) {
+        dialog.replace(() => <DialogSessions />)
+      }
     }
   }
 
