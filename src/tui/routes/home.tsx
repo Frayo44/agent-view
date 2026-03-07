@@ -472,12 +472,27 @@ export function Home() {
       ))
       return
     }
-    try {
-      await sync.session.delete(session.id)
-      toast.show({ message: `Deleted ${session.title}`, variant: "info", duration: 2000 })
-    } catch (err) {
-      toast.error(err as Error)
-    }
+
+    // Local session without worktree - show confirmation dialog
+    dialog.replace(() => (
+      <DialogSelect
+        title={`Delete "${session.title}"?`}
+        options={[
+          { title: "Delete", value: "delete" },
+          { title: "Cancel", value: "cancel" },
+        ]}
+        onSelect={async (opt) => {
+          dialog.clear()
+          if (opt.value === "cancel") return
+          try {
+            await sync.session.delete(session.id)
+            toast.show({ message: `Deleted ${session.title}`, variant: "info", duration: 2000 })
+          } catch (err) {
+            toast.error(err as Error)
+          }
+        }}
+      />
+    ))
   }
 
   async function handleRestart(session: Session) {
@@ -685,6 +700,10 @@ export function Home() {
     if (evt.name === "r" && evt.shift) {
       const item = selectedItem()
       if (item?.type === "session" && item.session) {
+        if (isRemoteSession(item.session)) {
+          toast.show({ message: "Rename not supported for remote sessions", variant: "error", duration: 2000 })
+          return
+        }
         dialog.push(() => <DialogRename session={item.session!} />)
       } else if (item?.type === "group" && item.group) {
         dialog.push(() => <DialogGroup mode="rename" group={item.group!} />)
@@ -700,6 +719,10 @@ export function Home() {
     if (evt.name === "m") {
       const session = selectedSession()
       if (session) {
+        if (isRemoteSession(session)) {
+          toast.show({ message: "Move not supported for remote sessions", variant: "error", duration: 2000 })
+          return
+        }
         dialog.push(() => <DialogMove session={session} />)
       }
     }
@@ -719,6 +742,10 @@ export function Home() {
       evt.preventDefault()
       const session = selectedSession()
       if (session) {
+        if (isRemoteSession(session)) {
+          toast.show({ message: "Remote sessions cannot be forked from here", variant: "error", duration: 2000 })
+          return
+        }
         if (session.tool !== "claude") {
           toast.show({ message: "Only Claude sessions can be forked", variant: "error", duration: 2000 })
           return
@@ -748,13 +775,19 @@ export function Home() {
     // y to quick-confirm a waiting session (sends Enter without attaching)
     if (evt.name === "y" && !evt.shift && !evt.ctrl) {
       const session = selectedSession()
-      if (session && session.status === "waiting" && session.tmuxSession) {
-        sendKeys(session.tmuxSession, "").then(() => {
-          toast.show({ message: "✓ Confirmed", variant: "success", duration: 1500 })
-          sync.refresh()
-        }).catch((err) => {
-          toast.error(err as Error)
-        })
+      if (session && session.status === "waiting") {
+        if (isRemoteSession(session)) {
+          toast.show({ message: "Quick confirm not supported for remote sessions", variant: "error", duration: 2000 })
+          return
+        }
+        if (session.tmuxSession) {
+          sendKeys(session.tmuxSession, "").then(() => {
+            toast.show({ message: "✓ Confirmed", variant: "success", duration: 1500 })
+            sync.refresh()
+          }).catch((err) => {
+            toast.error(err as Error)
+          })
+        }
       }
       return
     }
