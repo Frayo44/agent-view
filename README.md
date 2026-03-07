@@ -67,7 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/frayo44/agent-view/main/install.sh 
 git clone git@github.com:frayo44/agent-view.git
 cd agent-view
 bun install
-bun run build
+bun run install-local
 ```
 
 ### Compile Standalone Binary

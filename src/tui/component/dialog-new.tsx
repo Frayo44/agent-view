@@ -23,6 +23,7 @@ import type { Tool, ClaudeSessionMode } from "@/core/types"
 import { getToolCommand } from "@/core/types"
 import { exec } from "child_process"
 import { promisify } from "util"
+import { openFolderDialog } from "@/core/fs-dialog"
 import { existsSync } from "fs"
 import path from "path"
 
@@ -61,7 +62,7 @@ const TOOLS: { value: Tool; label: string; description: string }[] = [
   { value: "shell", label: "Shell", description: "Plain terminal session" }
 ]
 
-type FocusField = "title" | "tool" | "resumeSession" | "skipPermissions" | "customCommand" | "path" | "worktree" | "branch"
+type FocusField = "title" | "tool" | "resumeSession" | "skipPermissions" | "customCommand" | "path" | "browsePath" | "worktree" | "branch"
 
 export function DialogNew() {
   const dialog = useDialog()
@@ -183,6 +184,7 @@ export function DialogNew() {
       fields.push("customCommand")
     }
     fields.push("path")
+    fields.push("browsePath")
     if (isInGitRepo()) {
       fields.push("worktree")
       if (useWorktree()) {
@@ -299,6 +301,19 @@ export function DialogNew() {
     if (evt.name === "escape") {
       evt.preventDefault()
       dialog.clear()
+      return
+    }
+
+    if (focusedField() === "browsePath" && (evt.name === "return" || evt.name === "space")) {
+      evt.preventDefault()
+      ;(async () => {
+        const selectedStr = await openFolderDialog(projectPath())
+        if (selectedStr) {
+          setProjectPath(selectedStr)
+          setFocusedField("path")
+          pathInputRef?.focus()
+        }
+      })()
       return
     }
 
@@ -508,9 +523,28 @@ export function DialogNew() {
 
       {/* Path field with autocomplete */}
       <box paddingLeft={4} paddingRight={4} paddingTop={1} gap={1}>
-        <text fg={focusedField() === "path" ? theme.primary : theme.textMuted}>
-          Project Path
-        </text>
+        <box flexDirection="row" justifyContent="space-between">
+          <text fg={focusedField() === "path" ? theme.primary : theme.textMuted}>
+            Project Path
+          </text>
+          <box
+            backgroundColor={focusedField() === "browsePath" ? theme.primary : undefined}
+            onMouseUp={async () => {
+              setFocusedField("browsePath")
+              const selectedStr = await openFolderDialog(projectPath())
+              if (selectedStr) {
+                setProjectPath(selectedStr)
+                // Refocus input
+                setFocusedField("path")
+                pathInputRef?.focus()
+              }
+            }}
+          >
+            <text fg={focusedField() === "browsePath" ? theme.background : theme.primary}>
+              [ Browse ]
+            </text>
+          </box>
+        </box>
         <InputAutocomplete
           value={projectPath()}
           onInput={setProjectPath}
