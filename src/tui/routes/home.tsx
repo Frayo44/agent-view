@@ -528,7 +528,22 @@ export function Home() {
     if (evt.name === "d") {
       const item = selectedItem()
       if (item?.type === "session" && item.session) {
-        handleDelete(item.session)
+        const session = item.session
+        dialog.push(() => (
+          <DialogSelect
+            title={`Delete "${session.title}"?`}
+            options={[
+              { title: "Delete", value: "delete" },
+              { title: "Cancel", value: "cancel" },
+            ]}
+            onSelect={(opt) => {
+              dialog.clear()
+              if (opt.value === "delete") {
+                handleDelete(session)
+              }
+            }}
+          />
+        ))
       } else if (item?.type === "group" && item.group) {
         handleDeleteGroup(item.group)
       }
