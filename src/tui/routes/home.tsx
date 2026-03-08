@@ -473,26 +473,13 @@ export function Home() {
       return
     }
 
-    // Local session without worktree - show confirmation dialog
-    dialog.replace(() => (
-      <DialogSelect
-        title={`Delete "${session.title}"?`}
-        options={[
-          { title: "Delete", value: "delete" },
-          { title: "Cancel", value: "cancel" },
-        ]}
-        onSelect={async (opt) => {
-          dialog.clear()
-          if (opt.value === "cancel") return
-          try {
-            await sync.session.delete(session.id)
-            toast.show({ message: `Deleted ${session.title}`, variant: "info", duration: 2000 })
-          } catch (err) {
-            toast.error(err as Error)
-          }
-        }}
-      />
-    ))
+    // Local session without worktree - delete directly (confirmation already shown by 'd' key handler)
+    try {
+      await sync.session.delete(session.id)
+      toast.show({ message: `Deleted ${session.title}`, variant: "info", duration: 2000 })
+    } catch (err) {
+      toast.error(err as Error)
+    }
   }
 
   async function handleRestart(session: Session) {
