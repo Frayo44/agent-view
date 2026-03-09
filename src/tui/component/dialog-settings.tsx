@@ -64,6 +64,11 @@ export function DialogSettings() {
         value: "autoHibernate" as const,
         footer: formatHibernate(config.autoHibernateMinutes || 0),
       },
+      {
+        title: "Copy .claude to worktree",
+        value: "copyClaudeDir" as const,
+        footer: (config.copyClaudeDir !== false) ? "Yes" : "No",
+      },
     ]
 
     dialog.replace(() => (
@@ -77,6 +82,7 @@ export function DialogSettings() {
             case "theme": return showTheme()
             case "defaultGroup": return showDefaultGroup()
             case "autoHibernate": return showAutoHibernate()
+            case "copyClaudeDir": return showCopyClaudeDir()
           }
         }}
       />
@@ -158,6 +164,23 @@ export function DialogSettings() {
         current={config.autoHibernateMinutes || 0}
         skipFilter
         onSelect={(opt) => updateConfig((c) => ({ ...c, autoHibernateMinutes: opt.value, autoHibernatePrompted: true }))}
+      />
+    ))
+  }
+
+  function showCopyClaudeDir() {
+    const config = getConfig()
+    const options = [
+      { title: "Yes (copy .claude directory to new worktree)", value: true },
+      { title: "No", value: false },
+    ]
+    dialog.replace(() => (
+      <DialogSelect
+        title="Copy .claude to worktree"
+        options={options}
+        current={config.copyClaudeDir !== false}
+        skipFilter
+        onSelect={(opt) => updateConfig((c) => ({ ...c, copyClaudeDir: opt.value }))}
       />
     ))
   }
