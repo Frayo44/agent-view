@@ -61,7 +61,7 @@ const TOOLS: { value: Tool; label: string; description: string }[] = [
   { value: "shell", label: "Shell", description: "Plain terminal session" }
 ]
 
-type FocusField = "title" | "tool" | "resumeSession" | "skipPermissions" | "customCommand" | "path" | "worktree" | "branch" | "copyClaudeDir"
+type FocusField = "title" | "tool" | "resumeSession" | "skipPermissions" | "customCommand" | "path" | "worktree" | "branch"
 
 export function DialogNew() {
   const dialog = useDialog()
@@ -103,9 +103,6 @@ export function DialogNew() {
   const [isInGitRepo, setIsInGitRepo] = createSignal(false)
   const [useBaseDevelop, setUseBaseDevelop] = createSignal(false)
   const [developExists, setDevelopExists] = createSignal(false)
-  const [claudeDirExists, setClaudeDirExists] = createSignal(false)
-  const [doCopyClaudeDir, setDoCopyClaudeDir] = createSignal(true)
-
   const storage = getStorage()
 
   const [focusedField, setFocusedField] = createSignal<FocusField>("title")
@@ -131,7 +128,6 @@ export function DialogNew() {
         setUseWorktree(false)
         setDevelopExists(false)
         setUseBaseDevelop(false)
-        setClaudeDirExists(false)
       } else {
         const repoRoot = await getRepoRoot(dir)
         const hasDevelop = await branchExists(repoRoot, "develop")
@@ -139,16 +135,12 @@ export function DialogNew() {
         if (!hasDevelop) {
           setUseBaseDevelop(false)
         }
-        const hasClaude = existsSync(path.join(repoRoot, ".claude"))
-        setClaudeDirExists(hasClaude)
-        if (!hasClaude) setDoCopyClaudeDir(false)
       }
     } catch {
       setIsInGitRepo(false)
       setUseWorktree(false)
       setDevelopExists(false)
       setUseBaseDevelop(false)
-      setClaudeDirExists(false)
     }
   })
 
@@ -194,9 +186,6 @@ export function DialogNew() {
       fields.push("worktree")
       if (useWorktree()) {
         fields.push("branch")
-        if (claudeDirExists()) {
-          fields.push("copyClaudeDir")
-        }
       }
     }
     return fields
@@ -254,8 +243,12 @@ export function DialogNew() {
         const wtPath = generateWorktreePath(repoRoot, branchName)
 
         worktreePath = await createWorktree(repoRoot, branchName, wtPath, baseBranch)
-        if (doCopyClaudeDir() && claudeDirExists()) {
-          await copyClaudeDir(repoRoot, worktreePath)
+        const shouldCopy = config().copyClaudeDir !== false
+        if (shouldCopy) {
+          const hasClaude = existsSync(path.join(repoRoot, ".claude"))
+          if (hasClaude) {
+            await copyClaudeDir(repoRoot, worktreePath)
+          }
         }
         sessionProjectPath = worktreePath
         worktreeRepo = repoRoot
@@ -394,11 +387,7 @@ export function DialogNew() {
       return
     }
 
-    if (focusedField() === "copyClaudeDir" && evt.name === "space") {
-      evt.preventDefault()
-      setDoCopyClaudeDir(!doCopyClaudeDir())
-      return
-    }
+
   })
 
   return (
@@ -604,25 +593,7 @@ export function DialogNew() {
               </box>
             </Show>
 
-            {/* Copy .claude directory toggle */}
-            <Show when={claudeDirExists()}>
-              <box
-                flexDirection="row"
-                gap={1}
-                paddingLeft={4}
-                onMouseUp={() => {
-                  setFocusedField("copyClaudeDir")
-                  setDoCopyClaudeDir(!doCopyClaudeDir())
-                }}
-              >
-                <text fg={focusedField() === "copyClaudeDir" ? theme.primary : theme.textMuted}>
-                  {doCopyClaudeDir() ? "[x]" : "[ ]"}
-                </text>
-                <text fg={focusedField() === "copyClaudeDir" ? theme.text : theme.textMuted}>
-                  Copy .claude directory
-                </text>
-              </box>
-            </Show>
+
           </Show>
         </box>
       </Show>
