@@ -29,6 +29,7 @@ export const SESSION_PREFIX = "agentorch_"
 // Signal files for UI requests from tmux keybinds
 const COMMAND_PALETTE_SIGNAL = "/tmp/agent-view-cmd-palette"
 const SESSION_LIST_SIGNAL = "/tmp/agent-view-session-list"
+const DELETE_SESSION_SIGNAL = "/tmp/agent-view-delete-session"
 
 // --- Isolated tmux server configuration ---
 // All agent-view sessions run on a dedicated tmux socket with a custom config,
@@ -610,6 +611,18 @@ export function wasSessionListRequested(): boolean {
   return false
 }
 
+export function wasDeleteSessionRequested(): boolean {
+  try {
+    if (fs.existsSync(DELETE_SESSION_SIGNAL)) {
+      fs.unlinkSync(DELETE_SESSION_SIGNAL)
+      return true
+    }
+  } catch {
+    // Ignore errors
+  }
+  return false
+}
+
 /**
  * Attach to a tmux session with Ctrl+Q to detach
  * Keybindings and status bar are configured via the custom tmux.conf,
@@ -692,6 +705,11 @@ export function attachSessionSync(sessionName: string): void {
   }
   try {
     fs.unlinkSync(SESSION_LIST_SIGNAL)
+  } catch {
+    // Ignore if doesn't exist
+  }
+  try {
+    fs.unlinkSync(DELETE_SESSION_SIGNAL)
   } catch {
     // Ignore if doesn't exist
   }
