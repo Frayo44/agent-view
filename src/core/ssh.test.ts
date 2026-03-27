@@ -92,7 +92,7 @@ describe("SSHRunner", () => {
       })
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
-    })
+    }, 15000) // Longer timeout for CI
 
     test("builds correct arguments for basic session", async () => {
       const runner = new SSHRunner("test", "nonexistent-host-12345", "av")
@@ -104,7 +104,7 @@ describe("SSHRunner", () => {
         group: "work",
       })
       expect(result.success).toBe(false) // Connection fails
-    })
+    }, 15000) // Longer timeout for CI
 
     test("handles custom tool with command", async () => {
       const runner = new SSHRunner("test", "nonexistent-host-12345", "av")
@@ -114,7 +114,7 @@ describe("SSHRunner", () => {
         command: "./my-script.sh",
       })
       expect(result.success).toBe(false) // Connection fails
-    })
+    }, 15000) // Longer timeout for CI
   })
 })
 
