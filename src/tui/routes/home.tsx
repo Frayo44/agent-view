@@ -27,7 +27,7 @@ import { executeShortcut, getShortcutGroupPath } from "@/core/shortcut"
 import { useKeybind } from "@tui/context/keybind"
 import { useKV } from "@tui/context/kv"
 import { DialogUpdate } from "@tui/component/dialog-update"
-import { attachSessionSync, capturePane, wasCommandPaletteRequested, wasSessionListRequested, sendKeys } from "@/core/tmux"
+import { attachSessionSync, capturePane, wasCommandPaletteRequested, wasSessionListRequested, wasDeleteSessionRequested, sendKeys } from "@/core/tmux"
 import { useCommandDialog } from "@tui/component/dialog-command"
 import type { Session, Group, RemoteSession } from "@/core/types"
 import { isRemoteSession } from "@/core/types"
@@ -326,6 +326,11 @@ export function Home() {
         dialog.replace(() => <DialogSessions />)
       }
     } else {
+      // Check if user pressed Ctrl+D to delete current session (local only)
+      if (wasDeleteSessionRequested()) {
+        handleDelete(session)
+        return
+      }
       // Check if user pressed Ctrl+K to open command palette (local only)
       if (wasCommandPaletteRequested()) {
         command.open()
