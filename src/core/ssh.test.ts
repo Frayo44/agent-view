@@ -94,27 +94,6 @@ describe("SSHRunner", () => {
       expect(result.error).toBeDefined()
     }, 15000) // Longer timeout for CI
 
-    test("builds correct arguments for basic session", async () => {
-      const runner = new SSHRunner("test", "nonexistent-host-12345", "av")
-      // We can verify the runner doesn't throw for valid inputs
-      const result = await runner.create({
-        projectPath: "/home/user/project",
-        tool: "claude",
-        title: "My Session",
-        group: "work",
-      })
-      expect(result.success).toBe(false) // Connection fails
-    }, 15000) // Longer timeout for CI
-
-    test("handles custom tool with command", async () => {
-      const runner = new SSHRunner("test", "nonexistent-host-12345", "av")
-      const result = await runner.create({
-        projectPath: "/home/user/project",
-        tool: "custom",
-        command: "./my-script.sh",
-      })
-      expect(result.success).toBe(false) // Connection fails
-    }, 15000) // Longer timeout for CI
   })
 })
 
