@@ -15,86 +15,8 @@ describe("SSHRunner", () => {
     })
   })
 
-  describe("argument quoting", () => {
-    // Test that arguments with spaces are properly quoted
-    // We can't test the actual SSH execution, but we can verify the runner handles various inputs
-
-    test("handles simple arguments", async () => {
-      const runner = new SSHRunner("test", "localhost", "av")
-      // This will fail to connect but we're testing argument handling
-      try {
-        await runner.run(["--list", "--json"])
-      } catch {
-        // Expected to fail - no SSH connection
-      }
-    })
-
-    test("handles arguments with spaces", async () => {
-      const runner = new SSHRunner("test", "localhost", "av")
-      try {
-        await runner.run(["--title", "My Session Name"])
-      } catch {
-        // Expected to fail - no SSH connection
-      }
-    })
-
-    test("handles arguments with quotes", async () => {
-      const runner = new SSHRunner("test", "localhost", "av")
-      try {
-        await runner.run(["--title", "Session's \"Name\""])
-      } catch {
-        // Expected to fail - no SSH connection
-      }
-    })
-  })
-
-  describe("fetchSessions", () => {
-    test("returns empty array on connection failure", async () => {
-      const runner = new SSHRunner("test", "nonexistent-host-12345", "av")
-      const sessions = await runner.fetchSessions()
-      expect(sessions).toEqual([])
-    })
-  })
-
-  describe("testConnection", () => {
-    test("returns error for invalid host", async () => {
-      const runner = new SSHRunner("test", "nonexistent-host-12345", "av")
-      const result = await runner.testConnection()
-      expect(result.ok).toBe(false)
-      expect(result.error).toBeDefined()
-    })
-  })
-
-  describe("checkAvailable", () => {
-    test("returns error for invalid host", async () => {
-      const runner = new SSHRunner("test", "nonexistent-host-12345", "av")
-      const result = await runner.checkAvailable()
-      expect(result.ok).toBe(false)
-      expect(result.error).toBeDefined()
-    })
-  })
-
-  describe("installAv", () => {
-    test("returns error for invalid host", async () => {
-      const runner = new SSHRunner("test", "nonexistent-host-12345", "av")
-      const result = await runner.installAv()
-      expect(result.success).toBe(false)
-      expect(result.error).toBeDefined()
-    })
-  })
-
-  describe("create", () => {
-    test("returns error for invalid host", async () => {
-      const runner = new SSHRunner("test", "nonexistent-host-12345", "av")
-      const result = await runner.create({
-        projectPath: "/home/user/project",
-        tool: "claude",
-      })
-      expect(result.success).toBe(false)
-      expect(result.error).toBeDefined()
-    }, 15000) // Longer timeout for CI
-
-  })
+  // Note: SSH connection tests removed - they're slow, flaky, and potentially unsafe
+  // (could connect to real hosts if the fake hostname happens to exist)
 })
 
 describe("isRemoteSession type guard", () => {
