@@ -695,32 +695,32 @@ export function DialogNewWizard() {
 
         <box flexDirection="column" gap={0} backgroundColor={theme.backgroundElement} padding={1}>
           <box flexDirection="row" gap={1}>
-            <text fg={theme.textMuted} width={15}>Tool:</text>
+            <box width={15}><text fg={theme.textMuted}>Tool:</text></box>
             <text fg={theme.primary} attributes={TextAttributes.BOLD}>{toolLabel()}</text>
           </box>
 
           <Show when={selectedTool() === "custom"}>
             <box flexDirection="row" gap={1}>
-              <text fg={theme.textMuted} width={15}>Command:</text>
+              <box width={15}><text fg={theme.textMuted}>Command:</text></box>
               <text fg={theme.text}>{customCommand()}</text>
             </box>
           </Show>
 
           <box flexDirection="row" gap={1}>
-            <text fg={theme.textMuted} width={15}>Path:</text>
+            <box width={15}><text fg={theme.textMuted}>Path:</text></box>
             <text fg={theme.text}>{projectPath()}</text>
           </box>
 
           <Show when={title()}>
             <box flexDirection="row" gap={1}>
-              <text fg={theme.textMuted} width={15}>Title:</text>
+              <box width={15}><text fg={theme.textMuted}>Title:</text></box>
               <text fg={theme.text}>{title()}</text>
             </box>
           </Show>
 
           <Show when={useWorktree()}>
             <box flexDirection="row" gap={1}>
-              <text fg={theme.textMuted} width={15}>Worktree:</text>
+              <box width={15}><text fg={theme.textMuted}>Worktree:</text></box>
               <text fg={theme.success}>Yes</text>
               <Show when={worktreeBranch()}>
                 <text fg={theme.text}>({worktreeBranch()})</text>
@@ -733,12 +733,12 @@ export function DialogNewWizard() {
 
           <Show when={selectedTool() === "claude"}>
             <box flexDirection="row" gap={1}>
-              <text fg={theme.textMuted} width={15}>Mode:</text>
+              <box width={15}><text fg={theme.textMuted}>Mode:</text></box>
               <text fg={theme.text}>{claudeSessionMode() === "resume" ? "Resume" : "New"}</text>
             </box>
             <Show when={skipPermissions()}>
               <box flexDirection="row" gap={1}>
-                <text fg={theme.textMuted} width={15}>Permissions:</text>
+                <box width={15}><text fg={theme.textMuted}>Permissions:</text></box>
                 <text fg={theme.warning}>Skipped</text>
               </box>
             </Show>

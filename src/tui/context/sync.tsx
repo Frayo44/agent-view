@@ -166,8 +166,8 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         async canFork(id: string): Promise<boolean> {
           return manager.canFork(id)
         },
-        rename(id: string, title: string): void {
-          manager.updateTitle(id, title)
+        async rename(id: string, title: string): Promise<void> {
+          await manager.updateTitle(id, title)
           refresh()
         },
         moveToGroup(id: string, groupPath: string): void {

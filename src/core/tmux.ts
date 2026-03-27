@@ -241,6 +241,23 @@ export async function killSession(name: string): Promise<void> {
   }
 }
 
+/**
+ * Rename a tmux session
+ */
+export async function renameSession(oldName: string, newName: string): Promise<void> {
+  try {
+    await execAsync(tmuxCmd(`rename-session -t "${oldName}" "${newName}"`))
+    // Update cache
+    const activity = sessionCache.data.get(oldName)
+    if (activity !== undefined) {
+      sessionCache.data.delete(oldName)
+      sessionCache.data.set(newName, activity)
+    }
+  } catch {
+    // Session might not exist
+  }
+}
+
 export async function sendKeys(name: string, keys: string): Promise<void> {
   // Use execFile + tmuxSpawnArgs (argument array) to prevent shell injection —
   // values are passed directly to the process, never interpreted by a shell.

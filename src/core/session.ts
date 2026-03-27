@@ -650,9 +650,20 @@ export class SessionManager {
     return getStorage().getSession(sessionId)
   }
 
-  updateTitle(sessionId: string, title: string): void {
+  async updateTitle(sessionId: string, title: string): Promise<void> {
     const storage = getStorage()
+    const session = storage.getSession(sessionId)
+
+    // Update title in storage
     storage.updateSessionField(sessionId, "title", title)
+
+    // Also rename tmux session if it exists
+    if (session?.tmuxSession) {
+      const newTmuxName = tmux.generateSessionName(title)
+      await tmux.renameSession(session.tmuxSession, newTmuxName)
+      storage.updateSessionField(sessionId, "tmux_session", newTmuxName)
+    }
+
     storage.touch()
   }
 
