@@ -261,6 +261,17 @@ export async function renameSession(oldName: string, newName: string): Promise<v
   }
 }
 
+/**
+ * Rename just the tmux window (for display purposes)
+ */
+export async function renameWindow(sessionName: string, windowTitle: string): Promise<void> {
+  try {
+    await execAsync(tmuxCmd(`rename-window -t "${sessionName}" "${windowTitle}"`))
+  } catch {
+    // Session might not exist
+  }
+}
+
 export async function sendKeys(name: string, keys: string): Promise<void> {
   // Use execFile + tmuxSpawnArgs (argument array) to prevent shell injection —
   // values are passed directly to the process, never interpreted by a shell.

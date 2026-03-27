@@ -657,11 +657,9 @@ export class SessionManager {
     // Update title in storage
     storage.updateSessionField(sessionId, "title", title)
 
-    // Also rename tmux session if it exists
+    // Also rename tmux window to show the new title (keep session name for internal tracking)
     if (session?.tmuxSession) {
-      const newTmuxName = tmux.generateSessionName(title)
-      await tmux.renameSession(session.tmuxSession, newTmuxName)
-      storage.updateSessionField(sessionId, "tmux_session", newTmuxName)
+      await tmux.renameWindow(session.tmuxSession, title)
     }
 
     storage.touch()
