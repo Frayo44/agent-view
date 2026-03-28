@@ -7,6 +7,8 @@ import { exec } from "child_process"
 import { promisify } from "util"
 import * as path from "path"
 import * as os from "os"
+import { existsSync } from "fs"
+import { cp } from "fs/promises"
 
 const execAsync = promisify(exec)
 
@@ -337,4 +339,15 @@ export async function pruneWorktrees(repoDir: string): Promise<void> {
     const output = err.stderr || err.stdout || err.message
     throw new Error(`failed to prune worktrees: ${output}`)
   }
+}
+
+/**
+ * Copy the .claude directory from the repo root into a worktree.
+ * No-op if the source directory does not exist.
+ */
+export async function copyClaudeDir(repoRoot: string, worktreePath: string): Promise<void> {
+  const src = path.join(repoRoot, ".claude")
+  const dest = path.join(worktreePath, ".claude")
+  if (!existsSync(src)) return
+  await cp(src, dest, { recursive: true })
 }
