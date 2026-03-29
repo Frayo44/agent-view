@@ -139,7 +139,7 @@ export class SSHRunner {
 
     // Exit alternate screen buffer before attaching
     process.stdout.write("\x1b[?1049l")
-    process.stdout.write("\x1b[2J\x1b[H")
+    process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
     process.stdout.write("\x1b[?25h")
 
     const sshArgs = [
@@ -159,7 +159,7 @@ export class SSHRunner {
 
     child.on("exit", () => {
       // Clear screen and re-enter alternate buffer for TUI
-      process.stdout.write("\x1b[2J\x1b[H")
+      process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
       process.stdout.write("\x1b[?1049h")
       process.stdout.write("\x1b]0;Agent View\x07")
     })
@@ -175,7 +175,7 @@ export class SSHRunner {
 
     // Exit alternate screen buffer
     process.stdout.write("\x1b[?1049l")
-    process.stdout.write("\x1b[2J\x1b[H")
+    process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
     process.stdout.write("\x1b[?25h")
 
     const sshArgs = [
@@ -207,7 +207,7 @@ export class SSHRunner {
     }
 
     // Clear screen and re-enter alternate buffer for TUI
-    process.stdout.write("\x1b[2J\x1b[H")
+    process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
     process.stdout.write("\x1b[?1049h")
     process.stdout.write("\x1b]0;Agent View\x07")
 
