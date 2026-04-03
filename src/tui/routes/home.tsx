@@ -112,6 +112,8 @@ export function Home() {
   const [previewLoading, setPreviewLoading] = createSignal(false)
   const [expandedSessions, setExpandedSessions] = createSignal<Set<string>>(new Set())
   const [sessionWindows, setSessionWindows] = createSignal<Map<string, TmuxWindow[]>>(new Map())
+  // Sessions the user manually collapsed — auto-expand skips these
+  const [collapsedSessions, setCollapsedSessions] = createSignal<Set<string>>(new Set())
   let scrollRef: ScrollBoxRenderable | undefined
   let previewScrollRef: ScrollBoxRenderable | undefined
   let previewDebounceTimer: ReturnType<typeof setTimeout> | undefined
@@ -167,7 +169,8 @@ export function Home() {
     }
   })
 
-  // Auto-expand all sessions' windows when expandSidebar is enabled
+  // Auto-expand all sessions' windows when expandSidebar is enabled.
+  // Sessions the user manually collapsed (Left arrow) are excluded from auto-expand.
   createEffect(() => {
     const config = getConfig()
     if (!config.expandSidebar) return
@@ -176,10 +179,11 @@ export function Home() {
 
     untrack(() => {
       const currentExpanded = new Set(expandedSessions())
+      const collapsed = collapsedSessions()
       let changed = false
 
       for (const session of sessions) {
-        if (session.tmuxSession && !currentExpanded.has(session.id)) {
+        if (session.tmuxSession && !currentExpanded.has(session.id) && !collapsed.has(session.id)) {
           currentExpanded.add(session.id)
           changed = true
           listWindows(session.tmuxSession).then(windows => {
@@ -693,6 +697,12 @@ export function Home() {
         const isExpanded = expandedSessions().has(item.session.id)
         if (item.session.tmuxSession && !isExpanded) {
           toggleSessionWindows(item.session)
+          // Remove from collapsed set so auto-expand can include it again
+          setCollapsedSessions(prev => {
+            const next = new Set(prev)
+            next.delete(item.session.id)
+            return next
+          })
         } else {
           handleAttach(item.session)
         }
@@ -712,11 +722,17 @@ export function Home() {
       } else if (item?.type === "window" && item.session) {
         toggleSessionWindows(item.session)
       } else if (item?.type === "session") {
-        const groupItem = groupedItems().find(
-          i => i.type === "group" && i.groupPath === item.groupPath
-        )
-        if (groupItem?.group?.expanded) {
-          sync.group.toggle(groupItem.group.path)
+        // If session has expanded windows, collapse those first and mark as manually collapsed
+        if (expandedSessions().has(item.session.id)) {
+          toggleSessionWindows(item.session)
+          setCollapsedSessions(prev => new Set(prev).add(item.session.id))
+        } else {
+          const groupItem = groupedItems().find(
+            i => i.type === "group" && i.groupPath === item.groupPath
+          )
+          if (groupItem?.group?.expanded) {
+            sync.group.toggle(groupItem.group.path)
+          }
         }
       }
     }
@@ -728,6 +744,12 @@ export function Home() {
         const isExpanded = expandedSessions().has(item.session.id)
         if (item.session.tmuxSession && !isExpanded) {
           toggleSessionWindows(item.session)
+          // Remove from collapsed set so auto-expand can include it again
+          setCollapsedSessions(prev => {
+            const next = new Set(prev)
+            next.delete(item.session.id)
+            return next
+          })
         } else {
           handleAttach(item.session)
         }
@@ -951,7 +973,7 @@ export function Home() {
       return <WindowItem window={item.window} session={item.session} index={index} />
     }
     if (item.session) {
-      return <SessionItem session={item.session} index={index} indented={true} />
+      return <SessionItem session={item.session} index={index} indented={true} expanded={expandedSessions().has(item.session.id)} />
     }
     return null
   }
@@ -1006,7 +1028,7 @@ export function Home() {
     )
   }
 
-  function SessionItem(props: { session: Session; index: number; indented?: boolean }) {
+  function SessionItem(props: { session: Session; index: number; indented?: boolean; expanded?: boolean }) {
     const isSelected = createMemo(() => props.index === selectedIndex())
     const isRemote = createMemo(() => isRemoteSession(props.session))
     const statusColor = createMemo(() => {
@@ -1026,7 +1048,8 @@ export function Home() {
     const reservedWidth = createMemo(() => {
       let reserved = 2 // left + right padding
       reserved += indent // indentation
-      reserved += 2 // status icon + space
+      reserved += 2 // status icon
+      if (props.session.tmuxSession) reserved += 1 // expand arrow
       reserved += 6 // memory indicator (e.g., "512M ")
       if (!useDualColumn()) {
         reserved += 8 // tool name + space in single column mode
@@ -1067,6 +1090,13 @@ export function Home() {
           </text>
         </box>
 
+
+        {/* Expand/collapse indicator for sessions with tmux windows */}
+        {props.session.tmuxSession && (
+          <text fg={isSelected() ? theme.selectedListItemText : theme.accent}>
+            {props.expanded ? "\u25BC" : "\u25B6"}
+          </text>
+        )}
         {/* Title */}
         <text
           fg={isSelected() ? theme.selectedListItemText : theme.text}
@@ -1131,7 +1161,7 @@ export function Home() {
           {"    "}
         </text>
         <text fg={isSelected() ? theme.selectedListItemText : theme.accent}>
-          {props.window.active ? "\u25B6" : " "}
+          {props.window.active ? "\u25CF" : " "}
         </text>
         <text> </text>
         <text fg={isSelected() ? theme.selectedListItemText : theme.text}>
