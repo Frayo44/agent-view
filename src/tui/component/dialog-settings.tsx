@@ -64,6 +64,11 @@ export function DialogSettings() {
         value: "autoHibernate" as const,
         footer: formatHibernate(config.autoHibernateMinutes || 0),
       },
+      {
+        title: "Expand sidebar",
+        value: "expandSidebar" as const,
+        footer: config.expandSidebar ? "On" : "Off",
+      },
     ]
 
     dialog.replace(() => (
@@ -77,6 +82,7 @@ export function DialogSettings() {
             case "theme": return showTheme()
             case "defaultGroup": return showDefaultGroup()
             case "autoHibernate": return showAutoHibernate()
+            case "expandSidebar": return showExpandSidebar()
           }
         }}
       />
@@ -158,6 +164,22 @@ export function DialogSettings() {
         current={config.autoHibernateMinutes || 0}
         skipFilter
         onSelect={(opt) => updateConfig((c) => ({ ...c, autoHibernateMinutes: opt.value, autoHibernatePrompted: true }))}
+      />
+    ))
+  }
+
+  function showExpandSidebar() {
+    const config = getConfig()
+    dialog.replace(() => (
+      <DialogSelect
+        title="Expand sidebar"
+        options={[
+          { title: "Off (default)", value: false },
+          { title: "On — show all windows", value: true },
+        ]}
+        current={config.expandSidebar || false}
+        skipFilter
+        onSelect={(opt) => updateConfig((c) => ({ ...c, expandSidebar: opt.value }))}
       />
     ))
   }

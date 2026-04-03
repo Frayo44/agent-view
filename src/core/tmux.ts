@@ -6,7 +6,7 @@
  * to avoid conflicts with the user's tmux configuration.
  */
 
-import { spawn, exec, execFile } from "child_process"
+import { spawn, exec, execFile, execSync } from "child_process"
 import { promisify } from "util"
 import path from "path"
 import os from "os"
@@ -35,6 +35,7 @@ const SESSION_LIST_SIGNAL = "/tmp/agent-view-session-list"
 // so we never load or interfere with the user's ~/.tmux.conf.
 // The config is defined in src/core/tmux.conf and inlined at build time.
 import TMUX_CONF from "./tmux.conf" with { type: "text" }
+import type { TmuxWindow } from "./types"
 
 const TMUX_SOCKET = "agent-view"
 const CONFIG_DIR = path.join(os.homedir(), ".agent-view")
@@ -352,6 +353,30 @@ export function attachSession(name: string): void {
   child.on("exit", (code) => {
     process.exit(code || 0)
   })
+}
+
+export async function listWindows(sessionName: string): Promise<TmuxWindow[]> {
+  const args = tmuxSpawnArgs(
+    "list-windows", "-t", sessionName,
+    "-F", "#{window_index}\t#{window_name}\t#{window_active}"
+  )
+  const { stdout } = await execFileAsync("tmux", args)
+  return stdout.trim().split("\n").filter(Boolean).map(line => {
+    const parts = line.split("\t")
+    return {
+      index: parseInt(parts[0]!, 10),
+      name: parts[1] || "",
+      active: parts[2] === "1"
+    }
+  })
+}
+
+export function selectWindowSync(sessionName: string, windowIndex: number): void {
+  try {
+    execSync(tmuxCmd(`select-window -t "${sessionName}:${windowIndex}"`), { timeout: 3000 })
+  } catch {
+    // Window might not exist
+  }
 }
 
 /**

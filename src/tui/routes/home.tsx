@@ -3,7 +3,7 @@
  * Shows session list on left, preview pane on right
  */
 
-import { createMemo, createSignal, For, Show, createEffect, onCleanup, type Accessor } from "solid-js"
+import { createMemo, createSignal, For, Show, createEffect, onCleanup, untrack, type Accessor } from "solid-js"
 import { TextAttributes, ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions, useKeyboard, useRenderer } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
@@ -22,14 +22,14 @@ import { DialogRecents } from "@tui/component/dialog-recents"
 import { DialogSettings } from "@tui/component/dialog-settings"
 import { DialogNewRemote } from "@tui/component/dialog-new-remote"
 import { DialogHelp } from "@tui/component/dialog-help"
-import { getShortcuts } from "@/core/config"
+import { getShortcuts, getConfig } from "@/core/config"
 import { executeShortcut, getShortcutGroupPath } from "@/core/shortcut"
 import { useKeybind } from "@tui/context/keybind"
 import { useKV } from "@tui/context/kv"
 import { DialogUpdate } from "@tui/component/dialog-update"
-import { attachSessionSync, capturePane, wasCommandPaletteRequested, wasSessionListRequested, sendKeys } from "@/core/tmux"
+import { attachSessionSync, capturePane, wasCommandPaletteRequested, wasSessionListRequested, sendKeys, listWindows, selectWindowSync } from "@/core/tmux"
 import { useCommandDialog } from "@tui/component/dialog-command"
-import type { Session, Group, RemoteSession } from "@/core/types"
+import type { Session, Group, RemoteSession, TmuxWindow } from "@/core/types"
 import { isRemoteSession } from "@/core/types"
 import { formatRelativeTime, truncatePath } from "@tui/util/locale"
 import { STATUS_ICONS } from "@tui/util/status"
@@ -110,6 +110,8 @@ export function Home() {
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [previewContent, setPreviewContent] = createSignal<string>("")
   const [previewLoading, setPreviewLoading] = createSignal(false)
+  const [expandedSessions, setExpandedSessions] = createSignal<Set<string>>(new Set())
+  const [sessionWindows, setSessionWindows] = createSignal<Map<string, TmuxWindow[]>>(new Map())
   let scrollRef: ScrollBoxRenderable | undefined
   let previewScrollRef: ScrollBoxRenderable | undefined
   let previewDebounceTimer: ReturnType<typeof setTimeout> | undefined
@@ -165,6 +167,33 @@ export function Home() {
     }
   })
 
+  // Auto-expand all sessions' windows when expandSidebar is enabled
+  createEffect(() => {
+    const config = getConfig()
+    if (!config.expandSidebar) return
+
+    const sessions = allSessions()
+
+    untrack(() => {
+      const currentExpanded = new Set(expandedSessions())
+      let changed = false
+
+      for (const session of sessions) {
+        if (session.tmuxSession && !currentExpanded.has(session.id)) {
+          currentExpanded.add(session.id)
+          changed = true
+          listWindows(session.tmuxSession).then(windows => {
+            setSessionWindows(prev => new Map(prev).set(session.id, windows))
+          }).catch(() => {})
+        }
+      }
+
+      if (changed) {
+        setExpandedSessions(currentExpanded)
+      }
+    })
+  })
+
   const localSessions = createMemo(() => sync.session.list())
   const remoteSessions = createMemo(() => sync.remote.list())
   const allSessions = createMemo(() => [...localSessions(), ...remoteSessions()])
@@ -174,18 +203,64 @@ export function Home() {
     return flattenGroupTree(allSessions(), groups)
   })
 
+  async function toggleSessionWindows(session: Session) {
+    const key = session.id
+    const expanded = new Set(expandedSessions())
+
+    if (expanded.has(key)) {
+      expanded.delete(key)
+    } else {
+      expanded.add(key)
+      if (session.tmuxSession) {
+        try {
+          const windows = await listWindows(session.tmuxSession)
+          setSessionWindows(prev => new Map(prev).set(key, windows))
+        } catch {
+          // tmux session might not exist
+        }
+      }
+    }
+    setExpandedSessions(expanded)
+  }
+
+  const flatItems = createMemo(() => {
+    const items: GroupedItem[] = []
+    const expanded = expandedSessions()
+    const windows = sessionWindows()
+
+    for (const item of groupedItems()) {
+      items.push(item)
+      if (item.type === "session" && item.session && expanded.has(item.session.id)) {
+        const wins = windows.get(item.session.id) || []
+        for (let i = 0; i < wins.length; i++) {
+          items.push({
+            type: "window",
+            window: wins[i],
+            session: item.session,
+            groupPath: item.groupPath,
+            isLast: i === wins.length - 1,
+            sessionExpanded: true,
+          })
+        }
+      }
+    }
+    return items
+  })
+
   createEffect(() => {
-    const len = groupedItems().length
+    const len = flatItems().length
     if (selectedIndex() >= len && len > 0) {
       setSelectedIndex(len - 1)
     }
   })
 
-  const selectedItem = createMemo(() => groupedItems()[selectedIndex()])
+  const selectedItem = createMemo(() => flatItems()[selectedIndex()])
 
   const selectedSession = createMemo(() => {
     const item = selectedItem()
-    return item?.type === "session" ? item.session : undefined
+    if (item?.type === "session") return item.session
+    if (item?.type === "window") return item.session
+    return undefined
   })
 
   const selectedGroup = createMemo(() => {
@@ -194,20 +269,29 @@ export function Home() {
   })
 
   const move = createListNavigation(
-    () => groupedItems().length,
+    () => flatItems().length,
     selectedIndex,
     setSelectedIndex
   )
 
+  const captureTarget = createMemo(() => {
+    const item = selectedItem()
+    if (item?.type === "window" && item.session?.tmuxSession && item.window) {
+      return `${item.session.tmuxSession}:${item.window.index}`
+    }
+    const session = selectedSession()
+    return session?.tmuxSession || ""
+  })
+
   // Fetch preview with debounce; keep showing previous content while loading
   createEffect(() => {
-    const session = selectedSession()
+    const target = captureTarget()
 
     if (previewDebounceTimer) {
       clearTimeout(previewDebounceTimer)
     }
 
-    if (!session || !session.tmuxSession) {
+    if (!target) {
       setPreviewContent("")
       setPreviewLoading(false)
       return
@@ -230,7 +314,7 @@ export function Home() {
       if (previewFetchAbort) return
 
       try {
-        const content = await capturePane(session.tmuxSession, {
+        const content = await capturePane(target, {
           startLine: -200, // Last 200 lines
           join: true
         })
@@ -273,7 +357,7 @@ export function Home() {
   })
 
   function jumpToGroup(groupIndex: number) {
-    const items = groupedItems()
+    const items = flatItems()
     const idx = items.findIndex(item => item.type === "group" && item.groupIndex === groupIndex)
     if (idx >= 0) {
       setSelectedIndex(idx)
@@ -592,7 +676,7 @@ export function Home() {
       setSelectedIndex(0)
     }
     if (evt.name === "end") {
-      setSelectedIndex(Math.max(0, groupedItems().length - 1))
+      setSelectedIndex(Math.max(0, flatItems().length - 1))
     }
 
     // Number keys 1-9 to jump to groups
@@ -606,6 +690,16 @@ export function Home() {
       if (item?.type === "group" && item.group && !item.group.expanded) {
         sync.group.toggle(item.group.path)
       } else if (item?.type === "session" && item.session) {
+        const isExpanded = expandedSessions().has(item.session.id)
+        if (item.session.tmuxSession && !isExpanded) {
+          toggleSessionWindows(item.session)
+        } else {
+          handleAttach(item.session)
+        }
+      } else if (item?.type === "window" && item.session) {
+        if (item.session.tmuxSession && item.window) {
+          selectWindowSync(item.session.tmuxSession, item.window.index)
+        }
         handleAttach(item.session)
       }
     }
@@ -615,8 +709,9 @@ export function Home() {
       const item = selectedItem()
       if (item?.type === "group" && item.group && item.group.expanded) {
         sync.group.toggle(item.group.path)
+      } else if (item?.type === "window" && item.session) {
+        toggleSessionWindows(item.session)
       } else if (item?.type === "session") {
-        // When on a session, collapse its parent group
         const groupItem = groupedItems().find(
           i => i.type === "group" && i.groupPath === item.groupPath
         )
@@ -630,9 +725,19 @@ export function Home() {
     if (evt.name === "return") {
       const item = selectedItem()
       if (item?.type === "session" && item.session) {
-        handleAttach(item.session)
+        const isExpanded = expandedSessions().has(item.session.id)
+        if (item.session.tmuxSession && !isExpanded) {
+          toggleSessionWindows(item.session)
+        } else {
+          handleAttach(item.session)
+        }
       } else if (item?.type === "group" && item.group) {
         sync.group.toggle(item.group.path)
+      } else if (item?.type === "window" && item.session) {
+        if (item.session.tmuxSession && item.window) {
+          selectWindowSync(item.session.tmuxSession, item.window.index)
+        }
+        handleAttach(item.session)
       }
     }
 
@@ -838,6 +943,19 @@ export function Home() {
     return lines
   })
 
+  function renderFlatItem(item: GroupedItem, index: number) {
+    if (item.type === "group" && item.group) {
+      return <GroupHeader group={item.group} index={index} />
+    }
+    if (item.type === "window" && item.window && item.session) {
+      return <WindowItem window={item.window} session={item.session} index={index} />
+    }
+    if (item.session) {
+      return <SessionItem session={item.session} index={index} indented={true} />
+    }
+    return null
+  }
+
   function GroupHeader(props: { group: Group; index: number }) {
     const isSelected = createMemo(() => props.index === selectedIndex())
     const statusSummary = createMemo(() => getGroupStatusSummary(allSessions(), props.group.path))
@@ -996,6 +1114,34 @@ export function Home() {
     )
   }
 
+  function WindowItem(props: { window: TmuxWindow; session: Session; index: number }) {
+    const isSelected = createMemo(() => props.index === selectedIndex())
+
+    return (
+      <box
+        flexDirection="row"
+        paddingLeft={1}
+        paddingRight={1}
+        height={1}
+        backgroundColor={isSelected() ? theme.primary : undefined}
+        onMouseUp={() => setSelectedIndex(props.index)}
+        onMouseOver={() => setSelectedIndex(props.index)}
+      >
+        <text fg={isSelected() ? theme.selectedListItemText : theme.accent}>
+          {"    "}
+        </text>
+        <text fg={isSelected() ? theme.selectedListItemText : theme.accent}>
+          {props.window.active ? "\u25B6" : " "}
+        </text>
+        <text> </text>
+        <text fg={isSelected() ? theme.selectedListItemText : theme.text}>
+          {props.window.name}
+        </text>
+        <text flexGrow={1}> </text>
+      </box>
+    )
+  }
+
   function PreviewHeader() {
     const session = () => selectedSession()
 
@@ -1140,21 +1286,8 @@ export function Home() {
               scrollbarOptions={{ visible: true }}
               ref={(r: ScrollBoxRenderable) => { scrollRef = r }}
             >
-              <For each={groupedItems()}>
-                {(item, index) => (
-                  <Show
-                    when={item.type === "group"}
-                    fallback={
-                      <SessionItem
-                        session={item.session!}
-                        index={index()}
-                        indented={true}
-                      />
-                    }
-                  >
-                    <GroupHeader group={item.group!} index={index()} />
-                  </Show>
-                )}
+              <For each={flatItems()}>
+                {(item, index) => renderFlatItem(item, index())}
               </For>
             </scrollbox>
           </box>
