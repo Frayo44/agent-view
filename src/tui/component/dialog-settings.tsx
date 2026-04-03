@@ -9,6 +9,7 @@ import { useToast } from "@tui/ui/toast"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { getConfig, loadConfig, saveConfig } from "@/core/config"
+import { setUserTmuxImport } from "@/core/tmux"
 import type { Tool } from "@/core/types"
 
 const TOOL_OPTIONS: { title: string; value: Tool }[] = [
@@ -64,6 +65,16 @@ export function DialogSettings() {
         value: "autoHibernate" as const,
         footer: formatHibernate(config.autoHibernateMinutes || 0),
       },
+      {
+        title: "Import user tmux config",
+        value: "importUserTmuxConfig" as const,
+        footer: config.importUserTmuxConfig ? "On" : "Off",
+      },
+      {
+        title: "Expand sidebar",
+        value: "expandSidebar" as const,
+        footer: config.expandSidebar ? "On" : "Off",
+      },
     ]
 
     dialog.replace(() => (
@@ -77,6 +88,8 @@ export function DialogSettings() {
             case "theme": return showTheme()
             case "defaultGroup": return showDefaultGroup()
             case "autoHibernate": return showAutoHibernate()
+            case "importUserTmuxConfig": return showImportUserTmuxConfig()
+            case "expandSidebar": return showExpandSidebar()
           }
         }}
       />
@@ -158,6 +171,41 @@ export function DialogSettings() {
         current={config.autoHibernateMinutes || 0}
         skipFilter
         onSelect={(opt) => updateConfig((c) => ({ ...c, autoHibernateMinutes: opt.value, autoHibernatePrompted: true }))}
+      />
+    ))
+  }
+
+  async function showImportUserTmuxConfig() {
+    const config = getConfig()
+    dialog.replace(() => (
+      <DialogSelect
+        title="Import user tmux config"
+        options={[
+          { title: "Off (default)", value: false },
+          { title: "On — source ~/.tmux.conf", value: true },
+        ]}
+        current={config.importUserTmuxConfig || false}
+        skipFilter
+        onSelect={async (opt) => {
+          await setUserTmuxImport(opt.value)
+          await updateConfig((c) => ({ ...c, importUserTmuxConfig: opt.value }))
+        }}
+      />
+    ))
+  }
+
+  function showExpandSidebar() {
+    const config = getConfig()
+    dialog.replace(() => (
+      <DialogSelect
+        title="Expand sidebar"
+        options={[
+          { title: "Off (default)", value: false },
+          { title: "On — show all windows", value: true },
+        ]}
+        current={config.expandSidebar || false}
+        skipFilter
+        onSelect={(opt) => updateConfig((c) => ({ ...c, expandSidebar: opt.value }))}
       />
     ))
   }

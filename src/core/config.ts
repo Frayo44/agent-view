@@ -30,6 +30,8 @@ export interface AppConfig {
   autoHibernateMinutes?: number   // 0 = disabled, default 0
   autoHibernatePrompted?: boolean // true = user has seen the prompt
   lastRemoteSession?: LastRemoteSession   // Last used remote session values
+  importUserTmuxConfig?: boolean
+  expandSidebar?: boolean
 }
 
 const CONFIG_DIR = path.join(os.homedir(), ".agent-view")
@@ -44,7 +46,9 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   defaultGroup: "default",
   shortcuts: [],
-  recents: []
+  recents: [],
+  importUserTmuxConfig: false,
+  expandSidebar: false,
 }
 
 // Cached config for sync access
