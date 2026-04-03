@@ -40,6 +40,7 @@ import type { TmuxWindow } from "./types"
 const TMUX_SOCKET = "agent-view"
 const CONFIG_DIR = path.join(os.homedir(), ".agent-view")
 const CONFIG_PATH = path.join(CONFIG_DIR, "tmux.conf")
+const USER_TMUX_IMPORT_MARKER = path.join(CONFIG_DIR, "import-user-tmux")
 
 let configWritten = false
 
@@ -643,6 +644,22 @@ export async function attachWithPty(sessionName: string): Promise<void> {
       process.stdout.write("\x1b[2J\x1b[H")
     }
   })
+}
+
+export async function setUserTmuxImport(enabled: boolean): Promise<void> {
+  if (enabled) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true })
+    fs.writeFileSync(USER_TMUX_IMPORT_MARKER, "", { mode: 0o600 })
+  } else {
+    try { fs.unlinkSync(USER_TMUX_IMPORT_MARKER) } catch {}
+  }
+  configWritten = false
+  ensureConfig()
+  try {
+    await execAsync(tmuxCmd("source-file " + CONFIG_PATH), { timeout: 3000 })
+  } catch {
+    // Server might not be running yet
+  }
 }
 
 /**
