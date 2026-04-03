@@ -202,6 +202,32 @@ export function Home() {
   const remoteSessions = createMemo(() => sync.remote.list())
   const allSessions = createMemo(() => [...localSessions(), ...remoteSessions()])
 
+  // Periodically refresh windows for all expanded sessions (every 3s)
+  // so newly created/deleted tmux windows appear without restarting AV.
+  const WINDOW_REFRESH_MS = 3000
+  const windowRefreshInterval = setInterval(() => {
+    const expanded = expandedSessions()
+    const sessions = allSessions()
+    if (expanded.size === 0) return
+
+    for (const session of sessions) {
+      if (session.tmuxSession && expanded.has(session.id)) {
+        listWindows(session.tmuxSession)
+          .then(windows => {
+            setSessionWindows(prev => {
+              const next = new Map(prev)
+              next.set(session.id, windows)
+              return next
+            })
+          })
+          .catch(() => {})
+      }
+    }
+  }, WINDOW_REFRESH_MS)
+  onCleanup(() => clearInterval(windowRefreshInterval))
+
+
+
   const groupedItems = createMemo(() => {
     const groups = ensureDefaultGroup(sync.group.list())
     return flattenGroupTree(allSessions(), groups)
