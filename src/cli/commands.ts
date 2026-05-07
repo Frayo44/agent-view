@@ -391,9 +391,6 @@ export async function cmdInfo(id: string, json: boolean): Promise<void> {
     console.log(`Worktree repo:   ${session.worktreeRepo}`)
     console.log(`Worktree branch: ${session.worktreeBranch}`)
   }
-  if (session.parentSessionId) {
-    console.log(`Parent session:  ${session.parentSessionId}`)
-  }
 }
 
 export async function cmdHibernate(id: string): Promise<void> {
@@ -409,8 +406,8 @@ export async function cmdHibernate(id: string): Promise<void> {
     process.exit(3)
   }
 
-  if (session.tool !== "claude" || !session.toolData?.claudeSessionId) {
-    process.stderr.write(`Error: Only Claude sessions with a session ID can be hibernated\n`)
+  if (session.tool !== "claude") {
+    process.stderr.write(`Error: Only Claude sessions can be hibernated\n`)
     process.exit(1)
   }
 

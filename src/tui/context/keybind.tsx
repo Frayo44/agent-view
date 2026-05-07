@@ -30,7 +30,6 @@ const DEFAULT_KEYBINDS: KeybindConfig = {
   detach: ["q", "escape"],
   delete: ["d", "ctrl+d"],
   restart: ["r", "ctrl+r"],
-  fork: ["f", "ctrl+f"],
   open_shortcuts: ["s", "<leader>s"]
 }
 

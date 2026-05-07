@@ -160,23 +160,6 @@ export function DialogSessions() {
     }
   }
 
-  async function handleFork(sessionId: string) {
-    // Fork not supported for remote sessions
-    if (sessionId.startsWith("remote:")) {
-      toast.show({ message: "Fork not supported for remote sessions", variant: "error", duration: 2000 })
-      return
-    }
-
-    try {
-      const forked = await sync.session.fork({ sourceSessionId: sessionId })
-      toast.show({ message: `Forked as ${forked.title}`, variant: "success", duration: 2000 })
-      route.navigate({ type: "session", sessionId: forked.id })
-      dialog.clear()
-    } catch (err) {
-      toast.error(err as Error)
-    }
-  }
-
   function handleAttach(sessionId: string) {
     // Check if this is a remote session
     if (sessionId.startsWith("remote:")) {
@@ -260,7 +243,6 @@ export function DialogSessions() {
       keybinds={[
         { key: "d", title: "Delete", onTrigger: (opt) => handleDelete(opt.value) },
         { key: "r", title: "Restart", onTrigger: (opt) => handleRestart(opt.value) },
-        { key: "f", title: "Fork", onTrigger: (opt) => handleFork(opt.value) },
         { key: "v", title: "View", onTrigger: (opt) => {
           if (opt.value.startsWith("remote:")) {
             toast.show({ message: "View not supported for remote sessions", variant: "error", duration: 2000 })

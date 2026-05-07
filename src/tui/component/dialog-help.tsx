@@ -36,8 +36,6 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { key: "d", description: "Delete session/group" },
       { key: "r", description: "Restart session" },
       { key: "R", description: "Rename session/group" },
-      { key: "f", description: "Fork session" },
-      { key: "F", description: "Fork with options" },
       { key: "z", description: "Hibernate session" },
       { key: "m", description: "Move to group" },
     ]

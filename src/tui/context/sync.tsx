@@ -158,14 +158,6 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           await manager.hibernate(id)
           refresh()
         },
-        async fork(options: Parameters<typeof manager.fork>[0]): Promise<Session> {
-          const session = await manager.fork(options)
-          refresh()
-          return session
-        },
-        async canFork(id: string): Promise<boolean> {
-          return manager.canFork(id)
-        },
         async rename(id: string, title: string): Promise<void> {
           await manager.updateTitle(id, title)
           refresh()

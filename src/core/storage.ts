@@ -124,9 +124,9 @@ export class Storage {
         id, title, project_path, group_path, sort_order,
         command, wrapper, tool, status, tmux_session,
         created_at, last_accessed,
-        parent_session_id, worktree_path, worktree_repo, worktree_branch,
+        worktree_path, worktree_repo, worktree_branch,
         tool_data, acknowledged
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     stmt.run(
@@ -142,7 +142,6 @@ export class Storage {
       session.tmuxSession,
       session.createdAt.getTime(),
       session.lastAccessed.getTime(),
-      session.parentSessionId,
       session.worktreePath,
       session.worktreeRepo,
       session.worktreeBranch,
@@ -159,9 +158,9 @@ export class Storage {
         id, title, project_path, group_path, sort_order,
         command, wrapper, tool, status, tmux_session,
         created_at, last_accessed,
-        parent_session_id, worktree_path, worktree_repo, worktree_branch,
+        worktree_path, worktree_repo, worktree_branch,
         tool_data, acknowledged
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     const transaction = this.db.transaction(() => {
@@ -185,7 +184,6 @@ export class Storage {
           session.tmuxSession,
           session.createdAt.getTime(),
           session.lastAccessed.getTime(),
-          session.parentSessionId,
           session.worktreePath,
           session.worktreeRepo,
           session.worktreeBranch,
@@ -204,7 +202,7 @@ export class Storage {
       SELECT id, title, project_path, group_path, sort_order,
         command, wrapper, tool, status, tmux_session,
         created_at, last_accessed,
-        parent_session_id, worktree_path, worktree_repo, worktree_branch,
+        worktree_path, worktree_repo, worktree_branch,
         tool_data, acknowledged
       FROM sessions ORDER BY sort_order
     `)
@@ -223,7 +221,6 @@ export class Storage {
       tmuxSession: row.tmux_session,
       createdAt: new Date(row.created_at),
       lastAccessed: new Date(row.last_accessed),
-      parentSessionId: row.parent_session_id,
       worktreePath: row.worktree_path,
       worktreeRepo: row.worktree_repo,
       worktreeBranch: row.worktree_branch,
@@ -237,7 +234,7 @@ export class Storage {
       SELECT id, title, project_path, group_path, sort_order,
         command, wrapper, tool, status, tmux_session,
         created_at, last_accessed,
-        parent_session_id, worktree_path, worktree_repo, worktree_branch,
+        worktree_path, worktree_repo, worktree_branch,
         tool_data, acknowledged
       FROM sessions WHERE id = ?
     `)
@@ -258,7 +255,6 @@ export class Storage {
       tmuxSession: row.tmux_session,
       createdAt: new Date(row.created_at),
       lastAccessed: new Date(row.last_accessed),
-      parentSessionId: row.parent_session_id,
       worktreePath: row.worktree_path,
       worktreeRepo: row.worktree_repo,
       worktreeBranch: row.worktree_branch,
@@ -281,7 +277,6 @@ export class Storage {
       tmuxSession: "tmux_session",
       createdAt: "created_at",
       lastAccessed: "last_accessed",
-      parentSessionId: "parent_session_id",
       worktreePath: "worktree_path",
       worktreeRepo: "worktree_repo",
       worktreeBranch: "worktree_branch",

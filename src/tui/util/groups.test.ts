@@ -24,7 +24,6 @@ function createMockSession(overrides: Partial<Session> = {}): Session {
     tmuxSession: "test-tmux",
     createdAt: new Date("2024-01-01T10:00:00Z"),
     lastAccessed: new Date("2024-01-01T10:00:00Z"),
-    parentSessionId: "",
     worktreePath: "",
     worktreeRepo: "",
     worktreeBranch: "",

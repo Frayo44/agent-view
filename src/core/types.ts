@@ -32,7 +32,6 @@ export interface Session {
   tmuxSession: string
   createdAt: Date
   lastAccessed: Date
-  parentSessionId: string
   worktreePath: string
   worktreeRepo: string
   worktreeBranch: string
@@ -88,20 +87,10 @@ export interface SessionCreateOptions {
   tool: Tool
   command?: string
   wrapper?: string
-  parentSessionId?: string
   worktreePath?: string
   worktreeRepo?: string
   worktreeBranch?: string
   claudeOptions?: ClaudeOptions
-}
-
-export interface SessionForkOptions {
-  sourceSessionId: string
-  title?: string
-  preserveHistory?: boolean
-  worktreePath?: string
-  worktreeRepo?: string
-  worktreeBranch?: string
 }
 
 export interface WorktreeConfig {

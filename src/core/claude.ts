@@ -3,13 +3,12 @@
  *
  * This module handles:
  * - Session ID detection and tracking
- * - Fork command building
- * - Session file management for worktree forks
+ * - Command building
  */
 
 import { homedir } from "os"
 import path from "path"
-import { readdirSync, statSync, readFileSync, existsSync, mkdirSync, copyFileSync } from "fs"
+import { readdirSync, statSync, readFileSync, existsSync } from "fs"
 import type { ClaudeOptions } from "./types"
 
 // =============================================================================
@@ -165,26 +164,6 @@ export function sessionHasConversationData(
 }
 
 /**
- * Find any session ID for a project (no time restriction).
- * Validates that the session has actual conversation data.
- *
- * Use this for forking old sessions that may not be "active".
- */
-export function findAnySessionID(projectPath: string): string | null {
-  const configDir = getClaudeConfigDir()
-  const projectDirName = convertToClaudeDirName(projectPath)
-  const projectConfigDir = path.join(configDir, "projects", projectDirName)
-
-  const sessionId = findSessionID(projectConfigDir, { activeOnly: false })
-
-  if (sessionId && sessionHasConversationData(projectPath, sessionId)) {
-    return sessionId
-  }
-
-  return null
-}
-
-/**
  * Get the lastSessionId from .claude.json for a specific project
  */
 function getLastSessionIdFromConfig(projectPath: string): string | null {
@@ -218,8 +197,7 @@ function getLastSessionIdFromConfig(projectPath: string): string | null {
  *
  * WARNING: This uses file system detection and returns the most recent session,
  * which may not be the session you want when multiple sessions exist for the
- * same project. Prefer using stored session IDs from session.toolData when
- * forking a specific session.
+ * same project.
  *
  * @returns Session ID or null if no active session found
  */
@@ -234,102 +212,6 @@ export function getClaudeSessionID(projectPath: string): string | null {
   }
 
   return getLastSessionIdFromConfig(projectPath)
-}
-
-// =============================================================================
-// Fork Operations
-// =============================================================================
-
-/**
- * Check if a session can be forked (has an active Claude session).
- * This is a basic check - prefer checking session.toolData.claudeSessionId directly.
- */
-export async function canFork(projectPath: string): Promise<boolean> {
-  const sessionId = getClaudeSessionID(projectPath)
-  return sessionId !== null
-}
-
-/**
- * Options for building a fork command
- */
-export interface ForkCommandOptions {
-  /** Working directory for the forked session */
-  projectPath: string
-  /** Claude session ID to fork from (the parent conversation) */
-  parentSessionId: string
-  /** New session ID for the forked session (must be pre-generated) */
-  newSessionId: string
-}
-
-/**
- * Build the shell command to fork a Claude session.
- *
- * The command:
- * 1. Changes to the project directory
- * 2. Sets CLAUDE_SESSION_ID in tmux environment for tracking
- * 3. Runs claude with --session-id, --resume, and --fork-session flags
- *
- * IMPORTANT: The newSessionId must be the same UUID that is stored in
- * the session's toolData. If a different UUID is used, the fork will
- * fail with "No conversation found" because Claude won't find a session
- * matching the stored ID.
- */
-export function buildForkCommand(options: ForkCommandOptions): string {
-  // Escape single quotes for shell safety
-  const escapedPath = options.projectPath.replace(/'/g, "'\\''")
-
-  // Build the command:
-  // - cd to project directory
-  // - set tmux env var for session tracking
-  // - run claude with fork flags using the PRE-GENERATED session ID
-  return (
-    `cd '${escapedPath}' && ` +
-    `tmux set-environment CLAUDE_SESSION_ID "${options.newSessionId}"; ` +
-    `claude --session-id "${options.newSessionId}" --resume ${options.parentSessionId} --fork-session`
-  )
-}
-
-/**
- * Copy a Claude session file from one project to another.
- *
- * This is required when forking to a git worktree because Claude stores
- * sessions per-project-path. When the worktree has a different path,
- * Claude won't find the parent session unless we copy it.
- *
- * @param sessionId - The Claude session ID to copy
- * @param sourceProjectPath - Original project path where session exists
- * @param targetProjectPath - Worktree path where session should be copied
- * @returns true if copy succeeded, false otherwise
- */
-export function copySessionToProject(
-  sessionId: string,
-  sourceProjectPath: string,
-  targetProjectPath: string
-): boolean {
-  const configDir = getClaudeConfigDir()
-  const sourceDirName = convertToClaudeDirName(sourceProjectPath)
-  const targetDirName = convertToClaudeDirName(targetProjectPath)
-
-  const sourceFile = path.join(configDir, "projects", sourceDirName, `${sessionId}.jsonl`)
-  const targetDir = path.join(configDir, "projects", targetDirName)
-  const targetFile = path.join(targetDir, `${sessionId}.jsonl`)
-
-  if (!existsSync(sourceFile)) {
-    return false
-  }
-
-  try {
-    // Create target directory if it doesn't exist
-    if (!existsSync(targetDir)) {
-      mkdirSync(targetDir, { recursive: true })
-    }
-
-    // Copy the session file
-    copyFileSync(sourceFile, targetFile)
-    return true
-  } catch {
-    return false
-  }
 }
 
 // =============================================================================

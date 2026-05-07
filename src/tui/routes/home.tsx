@@ -13,7 +13,6 @@ import { DialogSelect } from "@tui/ui/dialog-select"
 import { useToast } from "@tui/ui/toast"
 import { DialogNew } from "@tui/component/dialog-new"
 import { DialogSessions } from "@tui/component/dialog-sessions"
-import { DialogFork } from "@tui/component/dialog-fork"
 import { DialogRename } from "@tui/component/dialog-rename"
 import { DialogGroup } from "@tui/component/dialog-group"
 import { DialogMove } from "@tui/component/dialog-move"
@@ -342,9 +341,9 @@ export function Home() {
     if (isRemoteSession(session)) {
       // If remote session is stopped or hibernated, offer to resume or restart
       if (session.status === "stopped" || session.status === "hibernated") {
-        const isClaudeWithSession = session.tool === "claude" && session.toolData?.claudeSessionId
+        const isClaudeSession = session.tool === "claude"
         const options = [
-          ...(isClaudeWithSession
+          ...(isClaudeSession
             ? [{ title: "Resume session", value: "resume" }]
             : []),
           { title: "Restart session", value: "restart" },
@@ -386,9 +385,9 @@ export function Home() {
 
     // If session is stopped or hibernated, offer to resume or restart
     if (session.status === "stopped" || session.status === "hibernated") {
-      const isClaudeWithSession = session.tool === "claude" && session.toolData?.claudeSessionId
+      const isClaudeSession = session.tool === "claude"
       const options = [
-        ...(isClaudeWithSession
+        ...(isClaudeSession
           ? [{ title: "Resume session", value: "resume" }]
           : []),
         { title: "Restart session", value: "restart" },
@@ -510,47 +509,6 @@ export function Home() {
 
       sync.refresh()
     } catch (err) {
-      toast.error(err as Error)
-    }
-  }
-
-  async function handleFork(session: Session) {
-    log("handleFork called for session:", session.id, "tool:", session.tool, "projectPath:", session.projectPath)
-
-    if (isRemoteSession(session)) {
-      log("Fork rejected: remote session")
-      toast.show({ message: "Remote sessions cannot be forked from here", variant: "error", duration: 2000 })
-      return
-    }
-
-    if (session.tool !== "claude") {
-      log("Fork rejected: not a claude session")
-      toast.show({ message: "Only Claude sessions can be forked", variant: "error", duration: 2000 })
-      return
-    }
-
-    log("Checking canFork for session:", session.id)
-    const canForkSession = await sync.session.canFork(session.id)
-    log("canFork result:", canForkSession)
-
-    if (!canForkSession) {
-      log("Fork rejected: no conversation found")
-      toast.show({
-        message: "Cannot fork: no conversation found. Have at least one exchange with Claude first.",
-        variant: "error",
-        duration: 3000
-      })
-      return
-    }
-
-    try {
-      log("Calling sync.session.fork")
-      const forked = await sync.session.fork({ sourceSessionId: session.id })
-      log("Fork successful:", forked.id)
-      toast.show({ message: `Forked as ${forked.title}`, variant: "success", duration: 2000 })
-      sync.refresh()
-    } catch (err) {
-      log("Fork error:", err)
       toast.error(err as Error)
     }
   }
@@ -714,40 +672,12 @@ export function Home() {
       }
     }
 
-    // f to fork (quick)
-    if (evt.name === "f" && !evt.shift) {
-      log("f pressed, selectedSession:", selectedSession()?.id, selectedSession()?.tool)
-      const session = selectedSession()
-      if (session) {
-        log("Calling handleFork for session:", session.id)
-        handleFork(session)
-      }
-    }
-
-    // F (Shift+f) to fork with options dialog
-    if (evt.name === "f" && evt.shift) {
-      evt.preventDefault()
-      const session = selectedSession()
-      if (session) {
-        if (isRemoteSession(session)) {
-          toast.show({ message: "Remote sessions cannot be forked from here", variant: "error", duration: 2000 })
-          return
-        }
-        if (session.tool !== "claude") {
-          toast.show({ message: "Only Claude sessions can be forked", variant: "error", duration: 2000 })
-          return
-        }
-        dialog.push(() => <DialogFork session={session} />)
-      }
-      return
-    }
-
     // z to hibernate session
     if (evt.name === "z" && !evt.shift && !evt.ctrl) {
       const session = selectedSession()
       if (session) {
-        if (session.tool !== "claude" || !session.toolData?.claudeSessionId) {
-          toast.show({ message: "Only Claude sessions with a session ID can be hibernated", variant: "error", duration: 2000 })
+        if (session.tool !== "claude") {
+          toast.show({ message: "Only Claude sessions can be hibernated", variant: "error", duration: 2000 })
           return
         }
         if (session.status === "stopped" || session.status === "hibernated") {
@@ -1250,10 +1180,6 @@ export function Home() {
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>R</text>
           <text fg={theme.textMuted}>rename</text>
-        </box>
-        <box flexDirection="column" alignItems="center">
-          <text fg={theme.text}>f</text>
-          <text fg={theme.textMuted}>fork</text>
         </box>
         <box flexDirection="column" alignItems="center">
           <text fg={theme.text}>z</text>
