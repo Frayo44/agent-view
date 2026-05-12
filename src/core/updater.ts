@@ -52,7 +52,7 @@ export function performUpdateSync(): void {
 
   // Exit alternate screen buffer
   process.stdout.write("\x1b[?1049l")
-  process.stdout.write("\x1b[2J\x1b[H")
+  process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
   process.stdout.write("\x1b[?25h")
 
   spawnSync("bash", ["-c", "curl -fsSL https://raw.githubusercontent.com/frayo44/agent-view/main/install.sh | bash"], {
@@ -61,7 +61,7 @@ export function performUpdateSync(): void {
   })
 
   // Clear screen and re-enter alternate buffer for TUI
-  process.stdout.write("\x1b[2J\x1b[H")
+  process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
   process.stdout.write("\x1b[?1049h")
 
   // Restore terminal title

@@ -5,7 +5,7 @@
 
 import { createSignal, createMemo, For, Show, batch, createEffect, on } from "solid-js"
 import { TextAttributes, RGBA, InputRenderable } from "@opentui/core"
-import { useKeyboard } from "@opentui/solid"
+import { useKeyboard, usePaste } from "@opentui/solid"
 import { useTheme, selectedForeground } from "@tui/context/theme"
 
 export interface InputAutocompleteProps {
@@ -144,6 +144,12 @@ export function InputAutocomplete(props: InputAutocompleteProps) {
       setSelectedIdx(-1)
       return
     }
+  })
+
+  // Ensure suggestions update after a paste operation
+  usePaste(() => {
+    setShowSuggestions(true)
+    setSelectedIdx(-1)
   })
 
   const fg = selectedForeground(theme)
