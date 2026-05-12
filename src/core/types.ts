@@ -39,6 +39,12 @@ export interface Session {
   acknowledged: boolean
 }
 
+export interface TmuxWindow {
+  index: number
+  name: string
+  active: boolean
+}
+
 export interface RemoteSession extends Session {
   remoteName: string     // Key from remotes config
   remoteHost: string     // SSH host

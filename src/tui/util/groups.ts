@@ -2,15 +2,17 @@
  * Group utility functions for organizing sessions
  */
 
-import type { Session, Group } from "@/core/types"
+import type { Session, Group, TmuxWindow } from "@/core/types"
 
 export interface GroupedItem {
-  type: "group" | "session"
+  type: "group" | "session" | "window"
   group?: Group
   session?: Session
+  window?: TmuxWindow
   groupPath: string
   isLast: boolean
-  groupIndex?: number  // 1-9 for hotkey jumps
+  groupIndex?: number
+  sessionExpanded?: boolean
 }
 
 export const DEFAULT_GROUP_PATH = "my-sessions"
