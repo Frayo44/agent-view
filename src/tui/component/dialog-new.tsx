@@ -16,7 +16,7 @@ import { DialogHeader } from "@tui/ui/dialog-header"
 import { DialogFooter } from "@tui/ui/dialog-footer"
 import { ActionButton } from "@tui/ui/action-button"
 import { attachSessionSync } from "@/core/tmux"
-import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists } from "@/core/git"
+import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists, copyClaudeDir } from "@/core/git"
 import { HistoryManager } from "@/core/history"
 import { getStorage } from "@/core/storage"
 import type { Tool, ClaudeSessionMode } from "@/core/types"
@@ -103,7 +103,6 @@ export function DialogNew() {
   const [isInGitRepo, setIsInGitRepo] = createSignal(false)
   const [useBaseDevelop, setUseBaseDevelop] = createSignal(false)
   const [developExists, setDevelopExists] = createSignal(false)
-
   const storage = getStorage()
 
   const [focusedField, setFocusedField] = createSignal<FocusField>("title")
@@ -121,16 +120,16 @@ export function DialogNew() {
   })
 
   createEffect(async () => {
-    const path = projectPath()
+    const dir = projectPath()
     try {
-      const result = await isGitRepo(path)
+      const result = await isGitRepo(dir)
       setIsInGitRepo(result)
       if (!result) {
         setUseWorktree(false)
         setDevelopExists(false)
         setUseBaseDevelop(false)
       } else {
-        const repoRoot = await getRepoRoot(path)
+        const repoRoot = await getRepoRoot(dir)
         const hasDevelop = await branchExists(repoRoot, "develop")
         setDevelopExists(hasDevelop)
         if (!hasDevelop) {
@@ -244,6 +243,13 @@ export function DialogNew() {
         const wtPath = generateWorktreePath(repoRoot, branchName)
 
         worktreePath = await createWorktree(repoRoot, branchName, wtPath, baseBranch)
+        const shouldCopy = config().copyClaudeDir === true
+        if (shouldCopy) {
+          const hasClaude = existsSync(path.join(repoRoot, ".claude"))
+          if (hasClaude) {
+            await copyClaudeDir(repoRoot, worktreePath)
+          }
+        }
         sessionProjectPath = worktreePath
         worktreeRepo = repoRoot
         worktreeBranchName = branchName
@@ -380,6 +386,8 @@ export function DialogNew() {
       setSkipPermissions(!skipPermissions())
       return
     }
+
+
   })
 
   return (
@@ -584,6 +592,8 @@ export function DialogNew() {
                 <text fg={theme.textMuted}>Base on develop</text>
               </box>
             </Show>
+
+
           </Show>
         </box>
       </Show>
@@ -610,7 +620,7 @@ export function DialogNew() {
         onAction={handleCreate}
       />
 
-      <DialogFooter hint={creating() ? statusMessage() : "Tab | Enter: create"} />
+      <DialogFooter hint={creating() ? statusMessage() : (focusedField() === "path" || focusedField() === "branch") ? "↓↑ browse | Tab/→ select | Enter create" : "Tab | Enter: create"} />
     </box>
   )
 }
