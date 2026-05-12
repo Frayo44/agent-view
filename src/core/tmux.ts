@@ -29,6 +29,7 @@ export const SESSION_PREFIX = "agentorch_"
 // Signal files for UI requests from tmux keybinds
 const COMMAND_PALETTE_SIGNAL = "/tmp/agent-view-cmd-palette"
 const SESSION_LIST_SIGNAL = "/tmp/agent-view-session-list"
+const DELETE_SESSION_SIGNAL = "/tmp/agent-view-delete-session"
 
 // --- Isolated tmux server configuration ---
 // All agent-view sessions run on a dedicated tmux socket with a custom config,
@@ -614,8 +615,8 @@ export async function attachWithPty(sessionName: string): Promise<void> {
         // PTY may already be closed
       }
 
-      // Clear screen before returning to TUI
-      process.stdout.write("\x1b[2J\x1b[H")
+      // Clear screen + scrollback before returning to TUI
+      process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
     }
   })
 }
@@ -639,6 +640,18 @@ export function wasSessionListRequested(): boolean {
   try {
     if (fs.existsSync(SESSION_LIST_SIGNAL)) {
       fs.unlinkSync(SESSION_LIST_SIGNAL)
+      return true
+    }
+  } catch {
+    // Ignore errors
+  }
+  return false
+}
+
+export function wasDeleteSessionRequested(): boolean {
+  try {
+    if (fs.existsSync(DELETE_SESSION_SIGNAL)) {
+      fs.unlinkSync(DELETE_SESSION_SIGNAL)
       return true
     }
   } catch {
@@ -732,10 +745,15 @@ export function attachSessionSync(sessionName: string): void {
   } catch {
     // Ignore if doesn't exist
   }
+  try {
+    fs.unlinkSync(DELETE_SESSION_SIGNAL)
+  } catch {
+    // Ignore if doesn't exist
+  }
 
   // Exit alternate screen buffer (TUI uses this)
   process.stdout.write("\x1b[?1049l")
-  process.stdout.write("\x1b[2J\x1b[H")
+  process.stdout.write("\x1b[2J\x1b[3J\x1b[H") // Clear screen + scrollback
   process.stdout.write("\x1b[?25h")
 
   // Attach to tmux - this blocks until user detaches (Ctrl+Q or Ctrl+B d)
@@ -747,8 +765,8 @@ export function attachSessionSync(sessionName: string): void {
     env
   })
 
-  // Clear screen and re-enter alternate buffer for TUI
-  process.stdout.write("\x1b[2J\x1b[H")
+  // Clear screen + scrollback and re-enter alternate buffer for TUI
+  process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
   process.stdout.write("\x1b[?1049h")
 
   // Restore terminal title to "Agent View"
