@@ -2,7 +2,7 @@
  * New session dialog with Tab navigation and worktree support
  */
 
-import { createSignal, createEffect, For, Show, onCleanup } from "solid-js"
+import { createSignal, createEffect, createMemo, For, Show, onCleanup } from "solid-js"
 import { TextAttributes, InputRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
@@ -16,9 +16,12 @@ import { DialogHeader } from "@tui/ui/dialog-header"
 import { DialogFooter } from "@tui/ui/dialog-footer"
 import { ActionButton } from "@tui/ui/action-button"
 import { attachSessionSync } from "@/core/tmux"
-import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists } from "@/core/git"
+import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists, copyClaudeDir } from "@/core/git"
 import { HistoryManager } from "@/core/history"
 import { getStorage } from "@/core/storage"
+import { readClipboard } from "@/core/clipboard"
+import { resolvePathCompletion } from "@/core/filesystem"
+import { DialogDirectoryBrowser } from "@tui/component/dialog-directory-browser"
 import type { Tool, ClaudeSessionMode } from "@/core/types"
 import { getToolCommand } from "@/core/types"
 import { exec } from "child_process"
@@ -105,6 +108,32 @@ export function DialogNew() {
   const [developExists, setDevelopExists] = createSignal(false)
 
   const storage = getStorage()
+
+  // Merge history + filesystem completions for path suggestions
+  const pathSuggestions = createMemo(() => {
+    const currentPath = projectPath()
+    const historyMatches = projectPathHistory.getFiltered(storage, currentPath)
+    const { completions: fsCompletions } = resolvePathCompletion(currentPath)
+
+    const seen = new Set(historyMatches)
+    const merged = [...historyMatches]
+    for (const completion of fsCompletions) {
+      if (!seen.has(completion)) merged.push(completion)
+    }
+    return merged.slice(0, 15)
+  })
+
+  function browseRepos() {
+    dialog.push(() => (
+      <DialogDirectoryBrowser
+        initialPath={projectPath().startsWith("~") ? projectPath().replace("~", process.env.HOME || "") : projectPath()}
+        onSelect={(selectedPath) => {
+          setProjectPath(selectedPath)
+          setFocusedField("path")
+        }}
+      />
+    ))
+  }
 
   const [focusedField, setFocusedField] = createSignal<FocusField>("title")
   const [toolIndex, setToolIndex] = createSignal(defaultToolIndex >= 0 ? defaultToolIndex : 0)
@@ -244,6 +273,10 @@ export function DialogNew() {
         const wtPath = generateWorktreePath(repoRoot, branchName)
 
         worktreePath = await createWorktree(repoRoot, branchName, wtPath, baseBranch)
+        const shouldCopy = config().copyClaudeDir === true
+        if (shouldCopy) {
+          await copyClaudeDir(repoRoot, worktreePath)
+        }
         sessionProjectPath = worktreePath
         worktreeRepo = repoRoot
         worktreeBranchName = branchName
@@ -296,6 +329,28 @@ export function DialogNew() {
   }
 
   useKeyboard((evt) => {
+    // Ctrl+V: paste clipboard content into focused input field
+    if (evt.ctrl && evt.name === "v") {
+      evt.preventDefault()
+      const field = focusedField()
+      readClipboard().then(text => {
+        if (!text) return
+        const sanitized = text.replace(/[\n\r]/g, "")
+        if (field === "path") setProjectPath(projectPath() + sanitized)
+        else if (field === "title") setTitle(title() + sanitized)
+        else if (field === "branch") setWorktreeBranch(worktreeBranch() + sanitized)
+        else if (field === "customCommand") setCustomCommand(customCommand() + sanitized)
+      })
+      return
+    }
+
+    // Ctrl+B: open directory browser to find git repos
+    if (evt.ctrl && evt.name === "b" && focusedField() === "path") {
+      evt.preventDefault()
+      browseRepos()
+      return
+    }
+
     if (evt.name === "escape") {
       evt.preventDefault()
       dialog.clear()
@@ -508,13 +563,16 @@ export function DialogNew() {
 
       {/* Path field with autocomplete */}
       <box paddingLeft={4} paddingRight={4} paddingTop={1} gap={1}>
-        <text fg={focusedField() === "path" ? theme.primary : theme.textMuted}>
-          Project Path
-        </text>
+        <box flexDirection="row" gap={2}>
+          <text fg={focusedField() === "path" ? theme.primary : theme.textMuted}>
+            Project Path
+          </text>
+          <text fg={theme.textMuted}>Ctrl+B: browse</text>
+        </box>
         <InputAutocomplete
           value={projectPath()}
           onInput={setProjectPath}
-          suggestions={projectPathHistory.getFiltered(storage, projectPath())}
+          suggestions={pathSuggestions()}
           onSelect={setProjectPath}
           focusedBackgroundColor={theme.backgroundElement}
           cursorColor={theme.primary}
@@ -610,7 +668,7 @@ export function DialogNew() {
         onAction={handleCreate}
       />
 
-      <DialogFooter hint={creating() ? statusMessage() : "Tab | Enter: create"} />
+      <DialogFooter hint={creating() ? statusMessage() : (focusedField() === "path" || focusedField() === "branch") ? "↓↑ browse | Tab/→ select | Ctrl+B dir | Enter create" : "Tab | Enter: create"} />
     </box>
   )
 }

@@ -16,9 +16,12 @@ import { DialogHeader } from "@tui/ui/dialog-header"
 import { DialogFooter } from "@tui/ui/dialog-footer"
 import { ActionButton } from "@tui/ui/action-button"
 import { attachSessionSync } from "@/core/tmux"
-import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists } from "@/core/git"
+import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists, copyClaudeDir } from "@/core/git"
 import { HistoryManager } from "@/core/history"
 import { getStorage } from "@/core/storage"
+import { readClipboard } from "@/core/clipboard"
+import { resolvePathCompletion } from "@/core/filesystem"
+import { DialogDirectoryBrowser } from "@tui/component/dialog-directory-browser"
 import type { Tool, ClaudeSessionMode } from "@/core/types"
 import { getToolCommand } from "@/core/types"
 import { exec } from "child_process"
@@ -114,6 +117,32 @@ export function DialogNewWizard() {
 
   const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
   const storage = getStorage()
+
+  // Merge history + filesystem completions for path suggestions
+  const pathSuggestions = createMemo(() => {
+    const currentPath = projectPath()
+    const historyMatches = projectPathHistory.getFiltered(storage, currentPath)
+    const { completions: fsCompletions } = resolvePathCompletion(currentPath)
+
+    const seen = new Set(historyMatches)
+    const merged = [...historyMatches]
+    for (const completion of fsCompletions) {
+      if (!seen.has(completion)) merged.push(completion)
+    }
+    return merged.slice(0, 15)
+  })
+
+  function browseRepos() {
+    dialog.push(() => (
+      <DialogDirectoryBrowser
+        initialPath={projectPath().startsWith("~") ? projectPath().replace("~", process.env.HOME || "") : projectPath()}
+        onSelect={(selectedPath) => {
+          setProjectPath(selectedPath)
+          setPathFocusField("path")
+        }}
+      />
+    ))
+  }
 
   let titleInputRef: InputRenderable | undefined
   let customCommandInputRef: InputRenderable | undefined
@@ -314,6 +343,10 @@ export function DialogNewWizard() {
         const wtPath = generateWorktreePath(repoRoot, branchName)
 
         worktreePath = await createWorktree(repoRoot, branchName, wtPath, baseBranch)
+        const shouldCopy = config().copyClaudeDir === true
+        if (shouldCopy) {
+          await copyClaudeDir(repoRoot, worktreePath)
+        }
         sessionProjectPath = worktreePath
         worktreeRepo = repoRoot
         worktreeBranchName = branchName
@@ -367,6 +400,29 @@ export function DialogNewWizard() {
 
   useKeyboard((evt) => {
     if (creating()) return
+
+    // Ctrl+V: paste clipboard content into focused input field
+    if (evt.ctrl && evt.name === "v") {
+      evt.preventDefault()
+      const step = currentStep()
+      const pff = pathFocusField()
+      readClipboard().then(text => {
+        if (!text) return
+        const sanitized = text.replace(/[\n\r]/g, "")
+        if (step === "path" && pff === "path") setProjectPath(projectPath() + sanitized)
+        else if (step === "path" && pff === "branch") setWorktreeBranch(worktreeBranch() + sanitized)
+        else if (step === "options" && selectedTool() === "custom") setCustomCommand(customCommand() + sanitized)
+        else if (step === "options") setTitle(title() + sanitized)
+      })
+      return
+    }
+
+    // Ctrl+B: open directory browser (only in path step)
+    if (evt.ctrl && evt.name === "b" && currentStep() === "path") {
+      evt.preventDefault()
+      browseRepos()
+      return
+    }
 
     // Escape: go back to previous step
     if (evt.name === "escape") {
@@ -535,14 +591,17 @@ export function DialogNewWizard() {
   function PathStep() {
     return (
       <box paddingLeft={4} paddingRight={4} gap={1} flexDirection="column">
-        <text fg={pathFocusField() === "path" ? theme.primary : theme.textMuted}>
-          Enter the project path:
-        </text>
+        <box flexDirection="row" gap={2}>
+          <text fg={pathFocusField() === "path" ? theme.primary : theme.textMuted}>
+            Enter the project path:
+          </text>
+          <text fg={theme.textMuted}>Ctrl+B: browse</text>
+        </box>
         <box onMouseUp={() => setPathFocusField("path")}>
           <InputAutocomplete
             value={projectPath()}
             onInput={setProjectPath}
-            suggestions={projectPathHistory.getFiltered(storage, projectPath())}
+            suggestions={pathSuggestions()}
             onSelect={setProjectPath}
             focusedBackgroundColor={theme.backgroundElement}
             cursorColor={theme.primary}
