@@ -18,6 +18,7 @@ import { ActionButton } from "@tui/ui/action-button"
 import { attachSessionSync } from "@/core/tmux"
 import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists } from "@/core/git"
 import { HistoryManager } from "@/core/history"
+import { getDirectorySuggestions, mergePathSuggestions } from "@/core/path-suggest"
 import { getStorage } from "@/core/storage"
 import type { Tool, ClaudeSessionMode } from "@/core/types"
 import { getToolCommand } from "@/core/types"
@@ -114,6 +115,26 @@ export function DialogNewWizard() {
 
   const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
   const storage = getStorage()
+
+  const filesystemPathSuggestions = createMemo(() =>
+    getDirectorySuggestions(projectPath(), {
+      cwd: process.cwd(),
+      home: process.env.HOME || process.cwd(),
+      limit: 30
+    })
+  )
+
+  const projectPathSuggestions = createMemo(() =>
+    mergePathSuggestions(
+      projectPath(),
+      projectPathHistory.getFiltered(storage, projectPath()),
+      {
+        cwd: process.cwd(),
+        home: process.env.HOME || process.cwd(),
+        limit: 30
+      }
+    )
+  )
 
   let titleInputRef: InputRenderable | undefined
   let customCommandInputRef: InputRenderable | undefined
@@ -409,6 +430,15 @@ export function DialogNewWizard() {
     // Path step: Tab navigation and worktree toggle
     if (currentStep() === "path") {
       if (evt.name === "tab") {
+        if (pathFocusField() === "path" && !evt.shift && !projectPath().trim().endsWith("/")) {
+          const firstSuggestion = filesystemPathSuggestions()[0]
+          if (firstSuggestion) {
+            evt.preventDefault()
+            setProjectPath(firstSuggestion)
+            return
+          }
+        }
+
         evt.preventDefault()
         const fields = getPathFocusableFields()
         const currentIdx = fields.indexOf(pathFocusField())
@@ -542,7 +572,7 @@ export function DialogNewWizard() {
           <InputAutocomplete
             value={projectPath()}
             onInput={setProjectPath}
-            suggestions={projectPathHistory.getFiltered(storage, projectPath())}
+            suggestions={projectPathSuggestions()}
             onSelect={setProjectPath}
             focusedBackgroundColor={theme.backgroundElement}
             cursorColor={theme.primary}
@@ -757,9 +787,9 @@ export function DialogNewWizard() {
     }
     if (step === "path" && isInGitRepo()) {
       if (!canProceed()) {
-        return "Tab: Navigate | Esc: Back"
+        return "Tab: Complete/Navigate | Esc: Back"
       }
-      return "Tab: Navigate | Enter: Next | Esc: Back"
+      return "Tab: Complete/Navigate | Enter: Next | Esc: Back"
     }
     if (!canProceed()) {
       return "Esc: Back"

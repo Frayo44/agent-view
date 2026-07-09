@@ -2,7 +2,7 @@
  * New session dialog with Tab navigation and worktree support
  */
 
-import { createSignal, createEffect, For, Show, onCleanup } from "solid-js"
+import { createSignal, createEffect, For, Show, onCleanup, createMemo } from "solid-js"
 import { TextAttributes, InputRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
@@ -18,6 +18,7 @@ import { ActionButton } from "@tui/ui/action-button"
 import { attachSessionSync } from "@/core/tmux"
 import { isGitRepo, getRepoRoot, createWorktree, generateBranchName, generateWorktreePath, sanitizeBranchName, branchExists } from "@/core/git"
 import { HistoryManager } from "@/core/history"
+import { getDirectorySuggestions, mergePathSuggestions } from "@/core/path-suggest"
 import { getStorage } from "@/core/storage"
 import type { Tool, ClaudeSessionMode } from "@/core/types"
 import { getToolCommand } from "@/core/types"
@@ -105,6 +106,26 @@ export function DialogNew() {
   const [developExists, setDevelopExists] = createSignal(false)
 
   const storage = getStorage()
+
+  const filesystemPathSuggestions = createMemo(() =>
+    getDirectorySuggestions(projectPath(), {
+      cwd: process.cwd(),
+      home: process.env.HOME || process.cwd(),
+      limit: 30
+    })
+  )
+
+  const projectPathSuggestions = createMemo(() =>
+    mergePathSuggestions(
+      projectPath(),
+      projectPathHistory.getFiltered(storage, projectPath()),
+      {
+        cwd: process.cwd(),
+        home: process.env.HOME || process.cwd(),
+        limit: 30
+      }
+    )
+  )
 
   const [focusedField, setFocusedField] = createSignal<FocusField>("title")
   const [toolIndex, setToolIndex] = createSignal(defaultToolIndex >= 0 ? defaultToolIndex : 0)
@@ -309,6 +330,15 @@ export function DialogNew() {
     }
 
     if (evt.name === "tab") {
+      if (focusedField() === "path" && !evt.shift && !projectPath().trim().endsWith("/")) {
+        const firstSuggestion = filesystemPathSuggestions()[0]
+        if (firstSuggestion) {
+          evt.preventDefault()
+          setProjectPath(firstSuggestion)
+          return
+        }
+      }
+
       evt.preventDefault()
       const fields = getFocusableFields()
       if (fields.length === 0) return
@@ -514,7 +544,7 @@ export function DialogNew() {
         <InputAutocomplete
           value={projectPath()}
           onInput={setProjectPath}
-          suggestions={projectPathHistory.getFiltered(storage, projectPath())}
+          suggestions={projectPathSuggestions()}
           onSelect={setProjectPath}
           focusedBackgroundColor={theme.backgroundElement}
           cursorColor={theme.primary}
@@ -610,7 +640,7 @@ export function DialogNew() {
         onAction={handleCreate}
       />
 
-      <DialogFooter hint={creating() ? statusMessage() : "Tab | Enter: create"} />
+      <DialogFooter hint={creating() ? statusMessage() : "Tab: complete/next | Enter: create"} />
     </box>
   )
 }
