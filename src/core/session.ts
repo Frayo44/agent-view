@@ -45,6 +45,9 @@ export class SessionManager {
   private refreshInterval: NodeJS.Timeout | null = null
   private memoryMap = new Map<string, number>() // sessionId → KB
   private _recentAutoHibernated: { id: string; title: string; idleMinutes: number }[] = []
+  private refreshing = false
+  private missCounts = new Map<string, number>() // sessionId → consecutive ticks missing from tmux
+  private previousStatuses = new Map<string, SessionStatus>() // sessionId → status from last tick
 
   getMemoryKB(sessionId: string): number | undefined {
     return this.memoryMap.get(sessionId)
@@ -72,29 +75,62 @@ export class SessionManager {
   }
 
   async refreshStatuses(): Promise<void> {
-    await tmux.refreshSessionCache()
+    // Ticks can outlast the interval (one capture-pane per session); without
+    // this guard they overlap and race on the session cache and the DB.
+    if (this.refreshing) return
+    this.refreshing = true
+    try {
+      await this.doRefreshStatuses()
+    } finally {
+      this.refreshing = false
+    }
+  }
+
+  private async doRefreshStatuses(): Promise<void> {
+    // One snapshot for the whole tick: every liveness/activity decision reads
+    // this map, so a slow tick can't misjudge sessions that were alive when
+    // the tick started. A transient tmux failure returns null — skip the tick
+    // rather than guess.
+    const snapshot = await tmux.refreshSessionCache()
+    if (!snapshot) return
 
     const storage = getStorage()
     const sessions = storage.loadSessions()
 
     const config = getConfig()
     const autoHibernateMs = (config.autoHibernateMinutes || 0) * 60 * 1000
+    const seen = new Set<string>()
 
     for (const session of sessions) {
       if (!session.tmuxSession) continue
+      seen.add(session.id)
 
-      // Skip hibernated sessions — they have no tmux process
-      if (session.status === "hibernated") continue
+      const present = snapshot.has(session.tmuxSession)
 
-      const exists = tmux.sessionExists(session.tmuxSession)
-      if (!exists) {
-        // Session was killed externally
-        storage.writeStatus(session.id, "stopped", session.tool)
-        continue
+      if (session.status === "hibernated") {
+        // Hibernated sessions have no tmux process — unless the hibernate
+        // kill failed. If it's actually alive, fall through and let it heal
+        // to a live status instead of staying gated forever.
+        if (!present) continue
       }
 
-      const isActive = tmux.isSessionActive(session.tmuxSession, 2)
+      if (!present) {
+        // Debounce: a session must be missing for 2 consecutive ticks before
+        // it's declared stopped, so a single bad reading can't flip it.
+        const misses = (this.missCounts.get(session.id) || 0) + 1
+        this.missCounts.set(session.id, misses)
+        if (misses >= 2) {
+          storage.writeStatus(session.id, "stopped", session.tool)
+          this.previousStatuses.set(session.id, "stopped")
+        }
+        continue
+      }
+      this.missCounts.delete(session.id)
 
+      const activity = snapshot.get(session.tmuxSession) || 0
+      const isActive = activity > 0 && Math.floor(Date.now() / 1000) - activity < 2
+
+      let newStatus: SessionStatus
       // Always capture output and check patterns - not just when active
       // This fixes the bug where waiting sessions were incorrectly marked as idle
       try {
@@ -107,48 +143,57 @@ export class SessionManager {
 
         if (status.isWaiting) {
           // Agent is waiting for user input (permission prompt, question, etc.)
-          storage.writeStatus(session.id, "waiting", session.tool)
+          newStatus = "waiting"
         } else if (status.hasError) {
-          // Agent encountered an error
-          storage.writeStatus(session.id, "error", session.tool)
+          newStatus = "error"
         } else if (status.isBusy || isActive) {
           // Agent is actively working (spinner visible, recent output, etc.)
-          storage.writeStatus(session.id, "running", session.tool)
+          newStatus = "running"
         } else {
           // No recent activity and no waiting prompt - idle
-          storage.writeStatus(session.id, "idle", session.tool)
-
-          // Auto-hibernate: if idle too long, hibernate Claude sessions
-          if (autoHibernateMs > 0 && session.tool === "claude") {
-            const lastActivity = tmux.getSessionActivity(session.tmuxSession)
-            if (lastActivity > 0) {
-              const idleMs = Date.now() - lastActivity * 1000
-              if (idleMs >= autoHibernateMs) {
-                try {
-                  await this.hibernate(session.id)
-                  this._recentAutoHibernated.push({
-                    id: session.id,
-                    title: session.title,
-                    idleMinutes: Math.round(idleMs / 60000)
-                  })
-                } catch {
-                  // Ignore hibernate failures during auto-hibernate
-                }
-              }
-            }
-          }
+          newStatus = "idle"
         }
       } catch {
         // Fallback: use activity-based detection if capture fails
-        storage.writeStatus(session.id, isActive ? "running" : "idle", session.tool)
+        newStatus = isActive ? "running" : "idle"
       }
+
+      storage.writeStatus(session.id, newStatus, session.tool)
+      this.previousStatuses.set(session.id, newStatus)
+
+      // Auto-hibernate: if idle too long, hibernate Claude sessions
+      if (newStatus === "idle" && autoHibernateMs > 0 && session.tool === "claude") {
+        if (activity > 0) {
+          const idleMs = Date.now() - activity * 1000
+          if (idleMs >= autoHibernateMs) {
+            try {
+              await this.hibernate(session.id)
+              this._recentAutoHibernated.push({
+                id: session.id,
+                title: session.title,
+                idleMinutes: Math.round(idleMs / 60000)
+              })
+            } catch {
+              // Ignore hibernate failures during auto-hibernate
+            }
+          }
+        }
+      }
+    }
+
+    // Prune tracking for sessions that no longer exist
+    for (const id of [...this.missCounts.keys()]) {
+      if (!seen.has(id)) this.missCounts.delete(id)
+    }
+    for (const id of [...this.previousStatuses.keys()]) {
+      if (!seen.has(id)) this.previousStatuses.delete(id)
     }
 
     storage.touch()
 
     // Collect memory usage for all running sessions
     const tmuxNames = sessions
-      .filter((s): s is Session & { tmuxSession: string } => !!s.tmuxSession && tmux.sessionExists(s.tmuxSession))
+      .filter((s): s is Session & { tmuxSession: string } => !!s.tmuxSession && snapshot.has(s.tmuxSession))
       .map(s => s.tmuxSession)
     const memMap = await tmux.getSessionsMemoryKB(tmuxNames)
     for (const session of sessions) {
@@ -276,7 +321,10 @@ export class SessionManager {
     }
 
     if (session.tmuxSession) {
-      await tmux.killSession(session.tmuxSession)
+      const killed = await tmux.killSession(session.tmuxSession)
+      if (!killed) {
+        throw new Error(`Could not stop the old tmux session for "${session.title}" — try attaching to it instead`)
+      }
     }
 
     const command = session.tool === "claude"
@@ -313,7 +361,10 @@ export class SessionManager {
     }
 
     if (session.tmuxSession) {
-      await tmux.killSession(session.tmuxSession)
+      const killed = await tmux.killSession(session.tmuxSession)
+      if (!killed) {
+        throw new Error(`Could not stop the old tmux session for "${session.title}" — try attaching to it instead`)
+      }
     }
 
     const command = session.tool === "claude"
@@ -351,7 +402,10 @@ export class SessionManager {
     if (!session) return
 
     if (session.tmuxSession) {
-      await tmux.killSession(session.tmuxSession)
+      const killed = await tmux.killSession(session.tmuxSession)
+      if (!killed) {
+        throw new Error(`Could not stop the tmux session for "${session.title}"`)
+      }
     }
 
     storage.writeStatus(sessionId, "stopped", session.tool)
@@ -373,7 +427,12 @@ export class SessionManager {
     }
 
     if (session.tmuxSession) {
-      await tmux.killSession(session.tmuxSession)
+      // Only mark hibernated once the tmux session is confirmed gone —
+      // otherwise the DB says "hibernated" while the agent is still alive.
+      const killed = await tmux.killSession(session.tmuxSession)
+      if (!killed) {
+        throw new Error(`Could not hibernate "${session.title}" — tmux session is still alive`)
+      }
     }
 
     storage.writeStatus(sessionId, "hibernated", session.tool)

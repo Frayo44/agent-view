@@ -25,7 +25,7 @@ import { executeShortcut, getShortcutGroupPath } from "@/core/shortcut"
 import { useKeybind } from "@tui/context/keybind"
 import { useKV } from "@tui/context/kv"
 import { DialogUpdate } from "@tui/component/dialog-update"
-import { attachSessionSync, capturePane, wasCommandPaletteRequested, wasSessionListRequested, sendKeys } from "@/core/tmux"
+import { attachSessionSync, capturePane, hasSession, wasCommandPaletteRequested, wasSessionListRequested, sendKeys } from "@/core/tmux"
 import { useCommandDialog } from "@tui/component/dialog-command"
 import type { Session, Group, RemoteSession } from "@/core/types"
 import { isRemoteSession } from "@/core/types"
@@ -304,18 +304,26 @@ export function Home() {
     previewFetchAbort = true
     renderer.suspend()
     let remoteSessionListRequested = false
+    let attachError: string | undefined
     try {
       if (isRemoteSession(session)) {
         // Attach to remote session via SSH - returns true if Ctrl+L was pressed
         remoteSessionListRequested = sync.remote.attach(session)
       } else {
-        attachSessionSync(session.tmuxSession)
+        const result = attachSessionSync(session.tmuxSession)
+        if (!result.ok) {
+          attachError = result.error
+        }
       }
     } catch (err) {
-      console.error("Attach error:", err)
+      attachError = err instanceof Error ? err.message : String(err)
     }
     renderer.resume()
     sync.refresh()
+
+    if (attachError) {
+      toast.show({ message: `Attach failed: ${attachError}`, variant: "error", duration: 4000 })
+    }
 
     if (isRemoteSession(session)) {
       sync.refreshRemote()
@@ -335,7 +343,7 @@ export function Home() {
     }
   }
 
-  function handleAttach(session: Session) {
+  async function handleAttach(session: Session) {
     // For remote sessions, check remoteName instead of tmuxSession
     if (isRemoteSession(session)) {
       // If remote session is stopped or hibernated, offer to resume or restart
@@ -346,6 +354,7 @@ export function Home() {
             ? [{ title: "Resume session", value: "resume" }]
             : []),
           { title: "Restart session", value: "restart" },
+          { title: "Attach anyway", value: "attach" },
         ]
 
         dialog.replace(() => (
@@ -355,6 +364,10 @@ export function Home() {
             onSelect={async (opt) => {
               dialog.clear()
               try {
+                if (opt.value === "attach") {
+                  doAttach(session)
+                  return
+                }
                 if (opt.value === "resume") {
                   await sync.remote.resume(session)
                 } else {
@@ -382,14 +395,24 @@ export function Home() {
       return
     }
 
-    // If session is stopped or hibernated, offer to resume or restart
+    // If session looks stopped or hibernated, re-check tmux directly first —
+    // the polled status can be stale, and resume/restart both kill the tmux
+    // session, which would destroy a live agent on a false reading.
     if (session.status === "stopped" || session.status === "hibernated") {
+      const alive = await hasSession(session.tmuxSession)
+      if (alive) {
+        // Status was wrong; attach directly. The refresh loop heals the DB.
+        doAttach(session)
+        return
+      }
+
       const isClaudeSession = session.tool === "claude"
       const options = [
         ...(isClaudeSession
           ? [{ title: "Resume session", value: "resume" }]
           : []),
         { title: "Restart session", value: "restart" },
+        { title: "Attach anyway", value: "attach" },
       ]
 
       dialog.replace(() => (
@@ -399,6 +422,10 @@ export function Home() {
           onSelect={async (opt) => {
             dialog.clear()
             try {
+              if (opt.value === "attach") {
+                doAttach(session)
+                return
+              }
               let updated: Session
               if (opt.value === "resume") {
                 updated = await sync.session.resume(session.id)

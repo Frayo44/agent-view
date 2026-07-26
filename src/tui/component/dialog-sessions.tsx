@@ -211,10 +211,14 @@ export function DialogSessions() {
 
     // Use sync attach - this blocks the event loop completely
     // User detaches with standard tmux: Ctrl+B, D
+    let attachError: string | undefined
     try {
-      attachSessionSync(session.tmuxSession)
+      const result = attachSessionSync(session.tmuxSession)
+      if (!result.ok) {
+        attachError = result.error
+      }
     } catch (err) {
-      console.error("Attach error:", err)
+      attachError = err instanceof Error ? err.message : String(err)
     }
 
     // Resume the TUI when we return
@@ -223,6 +227,10 @@ export function DialogSessions() {
     // Clear dialog and refresh after resume
     dialog.clear()
     sync.refresh()
+
+    if (attachError) {
+      toast.show({ message: `Attach failed: ${attachError}`, variant: "error", duration: 4000 })
+    }
 
     // Check if user pressed Ctrl+L to reopen session list
     if (wasSessionListRequested()) {

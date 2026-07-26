@@ -92,8 +92,6 @@ let sessionCache: SessionCache = {
   timestamp: 0
 }
 
-const CACHE_TTL = 2000 // 2 seconds
-
 export async function isTmuxAvailable(): Promise<boolean> {
   try {
     await execAsync("tmux -V")
@@ -104,13 +102,28 @@ export async function isTmuxAvailable(): Promise<boolean> {
 }
 
 /**
- * Refresh the session cache
- * Call this once per tick cycle
+ * Classify a tmux exec failure.
+ * "no-server" means the server genuinely isn't running (zero sessions is the
+ * truth). Anything else — spawn EAGAIN/EMFILE, a hung server hitting the exec
+ * timeout, signal — is transient and says nothing about session liveness.
  */
-export async function refreshSessionCache(): Promise<void> {
+export function classifyTmuxError(message: string): "no-server" | "transient" {
+  return /no server running|error connecting/i.test(message) ? "no-server" : "transient"
+}
+
+/**
+ * Refresh the session cache. Call this once per tick cycle.
+ *
+ * Returns the fresh session map (name -> activity timestamp) so callers can
+ * iterate over a consistent snapshot, or null on a transient failure — in
+ * which case the previous cache is kept and the caller should skip liveness
+ * decisions for this tick entirely.
+ */
+export async function refreshSessionCache(): Promise<Map<string, number> | null> {
   try {
     const { stdout } = await execAsync(
-      tmuxCmd('list-windows -a -F "#{session_name}\t#{window_activity}"')
+      tmuxCmd('list-windows -a -F "#{session_name}\t#{window_activity}"'),
+      { timeout: 2500 }
     )
 
     const newCache = new Map<string, number>()
@@ -130,32 +143,46 @@ export async function refreshSessionCache(): Promise<void> {
       data: newCache,
       timestamp: Date.now()
     }
-  } catch {
-    // tmux not running or no sessions
-    sessionCache = {
-      data: new Map(),
-      timestamp: Date.now()
+    return newCache
+  } catch (err: any) {
+    const message = `${err?.stderr || ""} ${err?.message || ""}`
+    if (classifyTmuxError(message) === "no-server") {
+      // Server is down: zero sessions is the truth
+      sessionCache = {
+        data: new Map(),
+        timestamp: Date.now()
+      }
+      return sessionCache.data
     }
+    // Transient failure: keep previous cache, signal the caller to skip
+    return null
   }
 }
 
 /**
- * Check if session exists (from cache)
+ * Check if session exists (from cache, as of the last successful refresh)
  */
 export function sessionExists(name: string): boolean {
-  if (Date.now() - sessionCache.timestamp > CACHE_TTL) {
-    return false // Cache stale, caller should refresh
-  }
   return sessionCache.data.has(name)
 }
 
 /**
- * Get session activity timestamp (from cache)
+ * Check if a session exists right now, bypassing the cache.
+ * The "=" prefix forces an exact name match (tmux -t prefix-matches otherwise).
+ */
+export async function hasSession(name: string): Promise<boolean> {
+  try {
+    await execFileAsync("tmux", tmuxSpawnArgs("has-session", "-t", `=${name}`))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Get session activity timestamp (from cache, as of the last successful refresh)
  */
 export function getSessionActivity(name: string): number {
-  if (Date.now() - sessionCache.timestamp > CACHE_TTL) {
-    return 0
-  }
   return sessionCache.data.get(name) || 0
 }
 
@@ -232,12 +259,25 @@ export async function createSession(options: {
   }
 }
 
-export async function killSession(name: string): Promise<void> {
+/**
+ * Kill a tmux session.
+ * Returns true when the session is gone afterwards (killed or didn't exist),
+ * false when the kill failed and the session may still be alive.
+ */
+export async function killSession(name: string): Promise<boolean> {
   try {
     await execAsync(tmuxCmd(`kill-session -t "${name}"`))
     sessionCache.data.delete(name)
-  } catch {
-    // Session might not exist
+    return true
+  } catch (err: any) {
+    // "can't find session" / "no server" mean it's already gone — success
+    const message = `${err?.stderr || ""} ${err?.message || ""}`
+    if (/can't find session|no server running|error connecting/i.test(message)) {
+      sessionCache.data.delete(name)
+      return true
+    }
+    console.error(`Failed to kill tmux session ${name}: ${message.trim()}`)
+    return false
   }
 }
 
@@ -719,7 +759,12 @@ export async function getSessionsMemoryKB(sessionNames: string[]): Promise<Map<s
   return result
 }
 
-export function attachSessionSync(sessionName: string): void {
+export interface AttachResult {
+  ok: boolean
+  error?: string
+}
+
+export function attachSessionSync(sessionName: string): AttachResult {
   const { spawnSync } = require("child_process")
 
   try {
@@ -740,10 +785,12 @@ export function attachSessionSync(sessionName: string): void {
 
   // Attach to tmux - this blocks until user detaches (Ctrl+Q or Ctrl+B d)
   // Unset TMUX to allow nested sessions (we manage our own tmux server)
+  // stderr is piped so a failed attach ("can't find session: ...") can be
+  // reported — the screen clears below would otherwise erase it silently.
   const env = { ...process.env }
   delete env.TMUX
-  spawnSync("tmux", tmuxSpawnArgs("attach-session", "-t", sessionName), {
-    stdio: "inherit",
+  const result = spawnSync("tmux", tmuxSpawnArgs("attach-session", "-t", `=${sessionName}`), {
+    stdio: ["inherit", "inherit", "pipe"],
     env
   })
 
@@ -753,4 +800,13 @@ export function attachSessionSync(sessionName: string): void {
 
   // Restore terminal title to "Agent View"
   process.stdout.write("\x1b]0;Agent View\x07")
+
+  if (result.error) {
+    return { ok: false, error: result.error.message }
+  }
+  if (result.status !== 0) {
+    const stderr = result.stderr?.toString().trim()
+    return { ok: false, error: stderr || `tmux attach exited with status ${result.status}` }
+  }
+  return { ok: true }
 }

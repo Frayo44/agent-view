@@ -332,8 +332,11 @@ export function DialogNewWizard() {
 
       if (session.tmuxSession) {
         renderer.suspend()
-        attachSessionSync(session.tmuxSession)
+        const result = attachSessionSync(session.tmuxSession)
         renderer.resume()
+        if (!result.ok && result.error) {
+          toast.show({ message: `Attach failed: ${result.error}`, variant: "error", duration: 4000 })
+        }
       }
 
       dialog.clear()

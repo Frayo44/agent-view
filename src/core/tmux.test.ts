@@ -8,6 +8,7 @@ import {
   getSessionActivity,
   registerSessionInCache,
   isSessionActive,
+  classifyTmuxError,
 } from "./tmux"
 
 // Note: We need to access the internal sessionCache for testing
@@ -260,5 +261,21 @@ describe("session cache", () => {
 describe("SESSION_PREFIX constant", () => {
   test("has expected value", () => {
     expect(SESSION_PREFIX).toBe("agentorch_")
+  })
+})
+
+describe("classifyTmuxError", () => {
+  test("no-server messages mean the server is genuinely down", () => {
+    expect(classifyTmuxError("no server running on /tmp/tmux-501/agent-view")).toBe("no-server")
+    expect(
+      classifyTmuxError("error connecting to /private/tmp/tmux-501/agent-view (No such file or directory)")
+    ).toBe("no-server")
+  })
+
+  test("anything else is transient", () => {
+    expect(classifyTmuxError("spawn EAGAIN")).toBe("transient")
+    expect(classifyTmuxError("Command failed: tmux list-windows")).toBe("transient")
+    expect(classifyTmuxError("ETIMEDOUT")).toBe("transient")
+    expect(classifyTmuxError("")).toBe("transient")
   })
 })
