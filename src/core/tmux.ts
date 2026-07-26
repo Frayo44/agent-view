@@ -254,6 +254,17 @@ export async function createSession(options: {
       cmdToSend = `bash -c '${escapedCmd}'`
     }
 
+    // Env vars must ride on the command line: the `set-environment` calls
+    // above only affect panes created later, not the shell already running
+    // in this pane. `env` is a binary, so the prefix works in fish/bash/zsh.
+    const envEntries = Object.entries(envVars)
+    if (envEntries.length > 0) {
+      const envPrefix = envEntries
+        .map(([key, value]) => `${key}="${value.replace(/[\\"$]/g, m => `\\${m}`)}"`)
+        .join(" ")
+      cmdToSend = `env ${envPrefix} ${cmdToSend}`
+    }
+
     await sendKeys(options.name, cmdToSend)
     await execAsync(tmuxCmd(`send-keys -t "${options.name}" Enter`))
   }

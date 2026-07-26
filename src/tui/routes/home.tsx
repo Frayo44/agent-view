@@ -26,6 +26,7 @@ import { useKeybind } from "@tui/context/keybind"
 import { useKV } from "@tui/context/kv"
 import { DialogUpdate } from "@tui/component/dialog-update"
 import { attachSessionSync, capturePane, hasSession, wasCommandPaletteRequested, wasSessionListRequested, sendKeys } from "@/core/tmux"
+import { clearSignalsFor } from "@/core/notify"
 import { useCommandDialog } from "@tui/component/dialog-command"
 import type { Session, Group, RemoteSession } from "@/core/types"
 import { isRemoteSession } from "@/core/types"
@@ -302,6 +303,9 @@ export function Home() {
 
   function doAttach(session: Session) {
     previewFetchAbort = true
+    // The user is about to see this session — clear its needs-attention state
+    sync.session.acknowledge(session.id)
+    clearSignalsFor(session.id)
     renderer.suspend()
     let remoteSessionListRequested = false
     let attachError: string | undefined

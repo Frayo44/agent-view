@@ -13,6 +13,8 @@ import path from "path"
 import fs from "fs"
 import os from "os"
 import { buildClaudeCommand } from "./claude"
+import { ensureHookFiles } from "./hooks"
+import { consumeSignals, sendOSNotification } from "./notify"
 import { getConfig, saveConfig } from "./config"
 import { addRecent } from "./recents"
 
@@ -39,6 +41,18 @@ function generateTitle(): string {
   const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]
   const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)]
   return `${adj}-${noun}`
+}
+
+/**
+ * Env vars injected into every session so Claude Code hooks can identify it.
+ * The title rides along for notification text; backticks are stripped because
+ * the value is embedded in a double-quoted shell word.
+ */
+function buildSessionEnv(id: string, title: string): Record<string, string> {
+  return {
+    AGENT_ORCHESTRATOR_SESSION: id,
+    AGENT_ORCHESTRATOR_TITLE: title.replace(/`/g, "")
+  }
 }
 
 export class SessionManager {
@@ -158,8 +172,30 @@ export class SessionManager {
         newStatus = isActive ? "running" : "idle"
       }
 
+      const prevStatus = this.previousStatuses.get(session.id)
       storage.writeStatus(session.id, newStatus, session.tool)
       this.previousStatuses.set(session.id, newStatus)
+
+      if (prevStatus && prevStatus !== newStatus) {
+        // Edge into a needs-attention state: light up the ! glyph
+        if (newStatus === "waiting" || newStatus === "error") {
+          storage.setAcknowledged(session.id, false)
+        }
+
+        // Custom tools have no Claude Code hooks — notify from the status
+        // edge instead. Claude sessions notify from the hook script itself.
+        if (
+          session.tool === "custom" &&
+          prevStatus === "running" &&
+          (newStatus === "waiting" || newStatus === "idle") &&
+          config.notifications !== false
+        ) {
+          sendOSNotification(
+            session.title,
+            newStatus === "waiting" ? "Needs your attention" : "Finished — waiting for you"
+          )
+        }
+      }
 
       // Auto-hibernate: if idle too long, hibernate Claude sessions
       if (newStatus === "idle" && autoHibernateMs > 0 && session.tool === "claude") {
@@ -187,6 +223,15 @@ export class SessionManager {
     }
     for (const id of [...this.previousStatuses.keys()]) {
       if (!seen.has(id)) this.previousStatuses.delete(id)
+    }
+
+    // Consume signal files dropped by the Claude Code hooks — they flag the
+    // session as needing attention (the OS notification already fired from
+    // the hook script itself).
+    for (const signal of consumeSignals()) {
+      if (sessions.some(s => s.id === signal.sessionId)) {
+        storage.setAcknowledged(signal.sessionId, false)
+      }
     }
 
     storage.touch()
@@ -218,7 +263,8 @@ export class SessionManager {
     let command: string
     if (options.command) {
       command = options.command
-    } else if (options.tool === "claude" && options.claudeOptions) {
+    } else if (options.tool === "claude") {
+      ensureHookFiles()
       command = buildClaudeCommand(options.claudeOptions)
     } else {
       command = getToolCommand(options.tool)
@@ -226,9 +272,7 @@ export class SessionManager {
 
     log("Creating tmux session:", tmuxName, "command:", command)
 
-    const env: Record<string, string> = {
-      AGENT_ORCHESTRATOR_SESSION: id
-    }
+    const env = buildSessionEnv(id, title)
 
     try {
       await tmux.createSession({
@@ -327,11 +371,15 @@ export class SessionManager {
       }
     }
 
-    const command = session.tool === "claude"
-      ? "claude --resume"
-      : session.command
+    let command: string
+    if (session.tool === "claude") {
+      ensureHookFiles()
+      command = buildClaudeCommand({ sessionMode: "resume" })
+    } else {
+      command = session.command
+    }
 
-    const env: Record<string, string> = { AGENT_ORCHESTRATOR_SESSION: session.id }
+    const env = buildSessionEnv(session.id, session.title)
 
     const newTmuxName = tmux.generateSessionName(session.title)
     await tmux.createSession({
@@ -367,11 +415,15 @@ export class SessionManager {
       }
     }
 
-    const command = session.tool === "claude"
-      ? "claude"
-      : session.command
+    let command: string
+    if (session.tool === "claude") {
+      ensureHookFiles()
+      command = buildClaudeCommand({ sessionMode: "new" })
+    } else {
+      command = session.command
+    }
 
-    const env: Record<string, string> = { AGENT_ORCHESTRATOR_SESSION: session.id }
+    const env = buildSessionEnv(session.id, session.title)
 
     const newTmuxName = tmux.generateSessionName(session.title)
     await tmux.createSession({

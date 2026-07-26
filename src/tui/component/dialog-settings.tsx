@@ -49,6 +49,11 @@ export function DialogSettings() {
         value: "autoHibernate" as const,
         footer: formatHibernate(config.autoHibernateMinutes || 0),
       },
+      {
+        title: "Notifications",
+        value: "notifications" as const,
+        footer: config.notifications !== false ? "Enabled" : "Disabled",
+      },
     ]
 
     dialog.replace(() => (
@@ -61,6 +66,7 @@ export function DialogSettings() {
             case "theme": return showTheme()
             case "defaultGroup": return showDefaultGroup()
             case "autoHibernate": return showAutoHibernate()
+            case "notifications": return showNotifications()
           }
         }}
       />
@@ -129,6 +135,22 @@ export function DialogSettings() {
         current={config.autoHibernateMinutes || 0}
         skipFilter
         onSelect={(opt) => updateConfig((c) => ({ ...c, autoHibernateMinutes: opt.value, autoHibernatePrompted: true }))}
+      />
+    ))
+  }
+
+  function showNotifications() {
+    const config = getConfig()
+    dialog.replace(() => (
+      <DialogSelect
+        title="Notifications (when agents finish or need input)"
+        options={[
+          { title: "Enabled", value: true },
+          { title: "Disabled", value: false },
+        ]}
+        current={config.notifications !== false}
+        skipFilter
+        onSelect={(opt) => updateConfig((c) => ({ ...c, notifications: opt.value }))}
       />
     ))
   }

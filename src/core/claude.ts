@@ -10,6 +10,7 @@ import { homedir } from "os"
 import path from "path"
 import { readdirSync, statSync, readFileSync, existsSync } from "fs"
 import type { ClaudeOptions } from "./types"
+import { getHookSettingsPath } from "./hooks"
 
 // =============================================================================
 // Constants
@@ -221,8 +222,13 @@ export function getClaudeSessionID(projectPath: string): string | null {
 /**
  * Build the Claude command based on options.
  *
+ * Always includes `--settings` pointing at agent-view's hook settings file
+ * (Stop/Notification hooks for OS notifications) — settings sources merge, so
+ * the user's own configuration is unaffected. Callers that actually launch
+ * the command must run ensureHookFiles() first so the file exists.
+ *
  * @param options - Claude session options
- * @returns Command string (e.g., "claude", "claude --resume", etc.)
+ * @returns Command string (e.g., `claude --resume --settings "..."`)
  */
 export function buildClaudeCommand(options?: ClaudeOptions): string {
   const parts: string[] = ["claude"]
@@ -234,6 +240,8 @@ export function buildClaudeCommand(options?: ClaudeOptions): string {
   if (options?.skipPermissions) {
     parts.push("--dangerously-skip-permissions")
   }
+
+  parts.push(`--settings "${getHookSettingsPath()}"`)
 
   return parts.join(" ")
 }

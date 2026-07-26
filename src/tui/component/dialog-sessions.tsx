@@ -13,6 +13,7 @@ import { useDialog } from "@tui/ui/dialog"
 import { useToast } from "@tui/ui/toast"
 import { DialogSelect, type DialogSelectOption } from "@tui/ui/dialog-select"
 import { attachSessionSync, wasSessionListRequested } from "@/core/tmux"
+import { clearSignalsFor } from "@/core/notify"
 import type { Session, SessionStatus, RemoteSession } from "@/core/types"
 import { isRemoteSession } from "@/core/types"
 import { formatSmartTime, truncatePath } from "@tui/util/locale"
@@ -205,6 +206,10 @@ export function DialogSessions() {
       toast.show({ message: "Session has no tmux session", variant: "error", duration: 2000 })
       return
     }
+
+    // The user is about to see this session — clear its needs-attention state
+    sync.session.acknowledge(session.id)
+    clearSignalsFor(session.id)
 
     // Suspend the TUI
     renderer.suspend()

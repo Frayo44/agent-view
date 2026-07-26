@@ -166,6 +166,9 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           manager.moveToGroup(id, groupPath)
           refresh()
         },
+        acknowledge(id: string): void {
+          manager.acknowledge(id)
+        },
         getMemoryMB(id: string): number | undefined {
           const kb = memoryStore[id]
           if (kb === undefined || kb <= 0) return undefined

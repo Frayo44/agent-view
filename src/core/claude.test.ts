@@ -13,44 +13,49 @@ import type { ClaudeOptions } from "./types"
 // =============================================================================
 
 describe("buildClaudeCommand", () => {
-  test("returns 'claude' when no options provided", () => {
+  // Every command carries --settings pointing at agent-view's hook settings
+  // (Stop/Notification hooks for OS notifications)
+  const SETTINGS_SUFFIX = /--settings ".*claude-settings\.json"$/
+
+  test("plain claude when no options provided", () => {
     const result = buildClaudeCommand()
-    expect(result).toBe("claude")
+    expect(result.startsWith("claude ")).toBe(true)
+    expect(result).not.toContain("--resume")
+    expect(result).not.toContain("--dangerously-skip-permissions")
+    expect(result).toMatch(SETTINGS_SUFFIX)
   })
 
-  test("returns 'claude' when options is undefined", () => {
-    const result = buildClaudeCommand(undefined)
-    expect(result).toBe("claude")
-  })
-
-  test("returns 'claude' for new session mode", () => {
+  test("plain claude for new session mode", () => {
     const options: ClaudeOptions = { sessionMode: "new" }
     const result = buildClaudeCommand(options)
-    expect(result).toBe("claude")
+    expect(result).not.toContain("--resume")
+    expect(result).toMatch(SETTINGS_SUFFIX)
   })
 
-  test("returns 'claude --resume' for resume session mode", () => {
+  test("adds --resume for resume session mode", () => {
     const options: ClaudeOptions = { sessionMode: "resume" }
     const result = buildClaudeCommand(options)
-    expect(result).toBe("claude --resume")
+    expect(result.startsWith("claude --resume")).toBe(true)
+    expect(result).toMatch(SETTINGS_SUFFIX)
   })
 
-  test("returns 'claude --dangerously-skip-permissions' when skipPermissions is true", () => {
+  test("adds --dangerously-skip-permissions when skipPermissions is true", () => {
     const options: ClaudeOptions = { sessionMode: "new", skipPermissions: true }
     const result = buildClaudeCommand(options)
-    expect(result).toBe("claude --dangerously-skip-permissions")
+    expect(result).toContain("--dangerously-skip-permissions")
+    expect(result).toMatch(SETTINGS_SUFFIX)
   })
 
-  test("returns 'claude --resume --dangerously-skip-permissions' for resume with skipPermissions", () => {
+  test("combines --resume and --dangerously-skip-permissions", () => {
     const options: ClaudeOptions = { sessionMode: "resume", skipPermissions: true }
     const result = buildClaudeCommand(options)
-    expect(result).toBe("claude --resume --dangerously-skip-permissions")
+    expect(result.startsWith("claude --resume --dangerously-skip-permissions")).toBe(true)
   })
 
-  test("returns 'claude' when skipPermissions is false", () => {
+  test("omits --dangerously-skip-permissions when skipPermissions is false", () => {
     const options: ClaudeOptions = { sessionMode: "new", skipPermissions: false }
     const result = buildClaudeCommand(options)
-    expect(result).toBe("claude")
+    expect(result).not.toContain("--dangerously-skip-permissions")
   })
 })
 
