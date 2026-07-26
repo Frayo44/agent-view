@@ -14,7 +14,7 @@ import {
   getShortcuts,
   type AppConfig
 } from "./config"
-import type { Shortcut } from "./types"
+import { sanitizeTool, type Shortcut } from "./types"
 
 describe("config", () => {
   const testConfigDir = path.join(os.tmpdir(), `agent-view-test-${Date.now()}`)
@@ -42,7 +42,6 @@ describe("config", () => {
     test("returns default configuration", () => {
       const config = getDefaultConfig()
 
-      expect(config.defaultTool).toBe("claude")
       expect(config.theme).toBe("dark")
       expect(config.defaultGroup).toBe("default")
       expect(config.worktree).toBeDefined()
@@ -54,9 +53,9 @@ describe("config", () => {
       const config1 = getDefaultConfig()
       const config2 = getDefaultConfig()
 
-      config1.defaultTool = "gemini"
+      config1.theme = "light"
 
-      expect(config2.defaultTool).toBe("claude")
+      expect(config2.theme).toBe("dark")
     })
   })
 
@@ -80,7 +79,6 @@ describe("config", () => {
       const config = await loadConfig()
 
       // Should have default values
-      expect(config.defaultTool).toBeDefined()
       expect(config.theme).toBeDefined()
       expect(config.worktree).toBeDefined()
     })
@@ -88,7 +86,7 @@ describe("config", () => {
     test("merges partial config with defaults", async () => {
       // Create a partial config file
       const partialConfig = {
-        defaultTool: "gemini",
+        theme: "light",
         worktree: {
           defaultBaseBranch: "develop"
         }
@@ -122,7 +120,6 @@ describe("config", () => {
   describe("config structure", () => {
     test("AppConfig has correct shape", () => {
       const config: AppConfig = {
-        defaultTool: "claude",
         theme: "dark",
         worktree: {
           defaultBaseBranch: "main",
@@ -131,7 +128,6 @@ describe("config", () => {
         defaultGroup: "default"
       }
 
-      expect(config.defaultTool).toBe("claude")
       expect(config.theme).toBe("dark")
       expect(config.worktree?.defaultBaseBranch).toBe("main")
       expect(config.worktree?.autoCleanup).toBe(true)
@@ -140,13 +136,11 @@ describe("config", () => {
 
     test("AppConfig allows partial worktree config", () => {
       const config: AppConfig = {
-        defaultTool: "opencode",
         worktree: {
           autoCleanup: false
         }
       }
 
-      expect(config.defaultTool).toBe("opencode")
       expect(config.worktree?.autoCleanup).toBe(false)
       expect(config.worktree?.defaultBaseBranch).toBeUndefined()
     })
@@ -154,20 +148,24 @@ describe("config", () => {
     test("AppConfig allows all optional fields", () => {
       const config: AppConfig = {}
 
-      expect(config.defaultTool).toBeUndefined()
       expect(config.theme).toBeUndefined()
       expect(config.worktree).toBeUndefined()
       expect(config.defaultGroup).toBeUndefined()
     })
   })
 
-  describe("tool types", () => {
-    test("defaultTool accepts valid tool values", () => {
-      const tools = ["claude", "opencode", "gemini", "codex", "custom", "shell"] as const
+  describe("tool sanitization", () => {
+    test("claude passes through", () => {
+      expect(sanitizeTool("claude")).toBe("claude")
+    })
 
-      for (const tool of tools) {
-        const config: AppConfig = { defaultTool: tool }
-        expect(config.defaultTool).toBe(tool)
+    test("custom passes through", () => {
+      expect(sanitizeTool("custom")).toBe("custom")
+    })
+
+    test("legacy tool values map to custom", () => {
+      for (const legacy of ["opencode", "gemini", "codex", "shell", "unknown", undefined, null]) {
+        expect(sanitizeTool(legacy)).toBe("custom")
       }
     })
   })
@@ -218,7 +216,7 @@ describe("config", () => {
     })
 
     test("shortcuts support all tool types", () => {
-      const tools = ["claude", "opencode", "gemini", "codex", "custom", "shell"] as const
+      const tools = ["claude", "custom"] as const
 
       for (const tool of tools) {
         const shortcut: Shortcut = {

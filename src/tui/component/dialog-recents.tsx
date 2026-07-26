@@ -18,12 +18,8 @@ import type { Recent } from "@/core/types"
 
 // Tool icons for display
 const TOOL_ICONS: Record<string, string> = {
-  claude: "\u2728",    // sparkles
-  opencode: "\u2699",  // gear
-  gemini: "\u2B50",    // star
-  codex: "\u26A1",     // lightning
-  custom: "\u2318",    // command
-  shell: "\u276F"      // terminal
+  claude: "\u2728",  // sparkles
+  custom: "\u2318"   // command
 }
 
 export function DialogRecents() {

@@ -92,13 +92,13 @@ describe("recents", () => {
         const newRecent: Recent = {
           name: "session",
           projectPath: "/project",
-          tool: "gemini"
+          tool: "custom"
         }
 
         const result = addRecent(existing, newRecent)
 
         expect(result).toHaveLength(2)
-        expect(result[0]?.tool).toBe("gemini")
+        expect(result[0]?.tool).toBe("custom")
         expect(result[1]?.tool).toBe("claude")
       })
     })

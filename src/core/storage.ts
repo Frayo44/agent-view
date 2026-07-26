@@ -8,7 +8,7 @@ import { Database } from "bun:sqlite"
 import path from "path"
 import os from "os"
 import fs from "fs"
-import type { Session, Group, StatusUpdate, Tool, SessionStatus } from "./types"
+import { sanitizeTool, type Session, type Group, type StatusUpdate, type Tool, type SessionStatus } from "./types"
 
 const SCHEMA_VERSION = 1
 
@@ -61,7 +61,7 @@ export class Storage {
         sort_order INTEGER NOT NULL DEFAULT 0,
         command TEXT NOT NULL DEFAULT '',
         wrapper TEXT NOT NULL DEFAULT '',
-        tool TEXT NOT NULL DEFAULT 'shell',
+        tool TEXT NOT NULL DEFAULT 'claude',
         status TEXT NOT NULL DEFAULT 'idle',
         tmux_session TEXT NOT NULL DEFAULT '',
         created_at INTEGER NOT NULL,
@@ -92,6 +92,12 @@ export class Storage {
         heartbeat INTEGER NOT NULL,
         is_primary INTEGER NOT NULL DEFAULT 0
       )
+    `)
+
+    // Normalize legacy tool values from the multi-tool era (idempotent).
+    // Their stored command keeps working, which is exactly "custom" semantics.
+    this.db.exec(`
+      UPDATE sessions SET tool = 'custom' WHERE tool NOT IN ('claude', 'custom')
     `)
 
     // Set schema version
@@ -216,7 +222,7 @@ export class Storage {
       order: row.sort_order,
       command: row.command,
       wrapper: row.wrapper,
-      tool: row.tool as Tool,
+      tool: sanitizeTool(row.tool),
       status: row.status as SessionStatus,
       tmuxSession: row.tmux_session,
       createdAt: new Date(row.created_at),
@@ -250,7 +256,7 @@ export class Storage {
       order: row.sort_order,
       command: row.command,
       wrapper: row.wrapper,
-      tool: row.tool as Tool,
+      tool: sanitizeTool(row.tool),
       status: row.status as SessionStatus,
       tmuxSession: row.tmux_session,
       createdAt: new Date(row.created_at),
@@ -304,7 +310,7 @@ export class Storage {
       result.set(row.id, {
         sessionId: row.id,
         status: row.status as SessionStatus,
-        tool: row.tool as Tool,
+        tool: sanitizeTool(row.tool),
         acknowledged: row.acknowledged === 1
       })
     }

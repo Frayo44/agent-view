@@ -50,28 +50,19 @@ const branchNameHistory = new HistoryManager("dialog-new:branch-names", 15)
 
 const TOOLS: { value: Tool; label: string; description: string }[] = [
   { value: "claude", label: "Claude Code", description: "Anthropic's Claude CLI" },
-  { value: "opencode", label: "OpenCode", description: "OpenCode CLI" },
-  { value: "gemini", label: "Gemini", description: "Google's Gemini CLI" },
-  { value: "codex", label: "Codex", description: "OpenAI's Codex CLI" },
-  { value: "custom", label: "Custom", description: "Custom command" },
-  { value: "shell", label: "Shell", description: "Plain terminal session" }
+  { value: "custom", label: "Custom", description: "Custom command" }
 ]
 
-type WizardStep = "tool" | "path" | "options" | "confirm"
+type WizardStep = "path" | "options" | "confirm"
 
-const STEP_ORDER: WizardStep[] = ["tool", "path", "options", "confirm"]
+const STEP_ORDER: WizardStep[] = ["path", "options", "confirm"]
 
 function getStepTitle(step: WizardStep): string {
   switch (step) {
-    case "tool": return "Select Tool"
     case "path": return "Project Path"
     case "options": return "Options"
     case "confirm": return "Confirm"
   }
-}
-
-function getStepNumber(step: WizardStep): number {
-  return STEP_ORDER.indexOf(step) + 1
 }
 
 export function DialogNewWizard() {
@@ -82,15 +73,12 @@ export function DialogNewWizard() {
   const renderer = useRenderer()
   const { config } = useConfig()
 
-  const defaultTool = config().defaultTool || "claude"
-  const defaultToolIndex = TOOLS.findIndex(t => t.value === defaultTool)
-
   // Wizard state
-  const [currentStep, setCurrentStep] = createSignal<WizardStep>("tool")
+  const [currentStep, setCurrentStep] = createSignal<WizardStep>("path")
 
   // Form data
   const [title, setTitle] = createSignal("")
-  const [selectedTool, setSelectedTool] = createSignal<Tool>(defaultTool)
+  const [selectedTool, setSelectedTool] = createSignal<Tool>("claude")
   const [customCommand, setCustomCommand] = createSignal("")
   const [projectPath, setProjectPath] = createSignal(process.cwd())
   const [claudeSessionMode, setClaudeSessionMode] = createSignal<ClaudeSessionMode>("new")
@@ -104,7 +92,6 @@ export function DialogNewWizard() {
   const [statusMessage, setStatusMessage] = createSignal("")
   const [spinnerFrame, setSpinnerFrame] = createSignal(0)
   const [errorMessage, setErrorMessage] = createSignal("")
-  const [toolIndex, setToolIndex] = createSignal(defaultToolIndex >= 0 ? defaultToolIndex : 0)
   const [isInGitRepo, setIsInGitRepo] = createSignal(false)
   const [developExists, setDevelopExists] = createSignal(false)
 
@@ -242,10 +229,6 @@ export function DialogNewWizard() {
 
   function canProceed(): boolean {
     const step = currentStep()
-
-    if (step === "tool") {
-      return true
-    }
 
     if (step === "path") {
       const p = projectPath().trim()
@@ -386,26 +369,6 @@ export function DialogNewWizard() {
       return
     }
 
-    // Tool selection step navigation
-    if (currentStep() === "tool") {
-      if (evt.name === "up" || evt.name === "k") {
-        evt.preventDefault()
-        const newIdx = (toolIndex() - 1 + TOOLS.length) % TOOLS.length
-        setToolIndex(newIdx)
-        const tool = TOOLS[newIdx]
-        if (tool) setSelectedTool(tool.value)
-        return
-      }
-      if (evt.name === "down" || evt.name === "j") {
-        evt.preventDefault()
-        const newIdx = (toolIndex() + 1) % TOOLS.length
-        setToolIndex(newIdx)
-        const tool = TOOLS[newIdx]
-        if (tool) setSelectedTool(tool.value)
-        return
-      }
-    }
-
     // Path step: Tab navigation and worktree toggle
     if (currentStep() === "path") {
       if (evt.name === "tab") {
@@ -444,20 +407,39 @@ export function DialogNewWizard() {
       }
     }
 
-    // Options step: toggle checkboxes
-    if (currentStep() === "options" && selectedTool() === "claude") {
-      if (evt.ctrl && evt.name === "r") {
+    // Options step: tool toggle + checkboxes
+    if (currentStep() === "options") {
+      if (evt.ctrl && evt.name === "t") {
         evt.preventDefault()
-        setClaudeSessionMode(claudeSessionMode() === "new" ? "resume" : "new")
+        selectTool(selectedTool() === "claude" ? "custom" : "claude")
         return
       }
-      if (evt.ctrl && evt.name === "p") {
-        evt.preventDefault()
-        setSkipPermissions(!skipPermissions())
-        return
+      if (selectedTool() === "claude") {
+        if (evt.ctrl && evt.name === "r") {
+          evt.preventDefault()
+          setClaudeSessionMode(claudeSessionMode() === "new" ? "resume" : "new")
+          return
+        }
+        if (evt.ctrl && evt.name === "p") {
+          evt.preventDefault()
+          setSkipPermissions(!skipPermissions())
+          return
+        }
       }
     }
   })
+
+  // Select a tool and move focus to the field that matters for it
+  function selectTool(tool: Tool) {
+    setSelectedTool(tool)
+    setTimeout(() => {
+      if (tool === "custom") {
+        customCommandInputRef?.focus()
+      } else {
+        titleInputRef?.focus()
+      }
+    }, 50)
+  }
 
   const toolLabel = createMemo(() => {
     const tool = TOOLS.find(t => t.value === selectedTool())
@@ -499,39 +481,7 @@ export function DialogNewWizard() {
     )
   }
 
-  // Step 1: Tool selection
-  function ToolStep() {
-    return (
-      <box paddingLeft={4} paddingRight={4} gap={1} flexDirection="column">
-        <text fg={theme.textMuted}>Select the tool to use for this session:</text>
-        <box gap={0} flexDirection="column" paddingTop={1}>
-          <For each={TOOLS}>
-            {(tool, idx) => (
-              <box
-                flexDirection="row"
-                gap={1}
-                height={1}
-                onMouseUp={() => {
-                  setSelectedTool(tool.value)
-                  setToolIndex(idx())
-                }}
-                paddingLeft={1}
-                backgroundColor={selectedTool() === tool.value ? theme.backgroundElement : undefined}
-              >
-                <text fg={selectedTool() === tool.value ? theme.primary : theme.textMuted}>
-                  {selectedTool() === tool.value ? "●" : "○"}
-                </text>
-                <text fg={theme.text}>{tool.label}</text>
-                <text fg={theme.textMuted}>- {tool.description}</text>
-              </box>
-            )}
-          </For>
-        </box>
-      </box>
-    )
-  }
-
-  // Step 2: Path configuration
+  // Step 1: Path configuration
   function PathStep() {
     return (
       <box paddingLeft={4} paddingRight={4} gap={1} flexDirection="column">
@@ -622,10 +572,32 @@ export function DialogNewWizard() {
     )
   }
 
-  // Step 3: Options (title + tool-specific)
+  // Step 2: Options (tool + title + tool-specific)
   function OptionsStep() {
     return (
       <box paddingLeft={4} paddingRight={4} gap={1} flexDirection="column">
+        <box flexDirection="row" gap={2}>
+          <text fg={theme.textMuted}>Tool:</text>
+          <For each={TOOLS}>
+            {(tool) => (
+              <box
+                flexDirection="row"
+                gap={1}
+                onMouseUp={() => selectTool(tool.value)}
+              >
+                <text fg={selectedTool() === tool.value ? theme.primary : theme.textMuted}>
+                  {selectedTool() === tool.value ? "●" : "○"}
+                </text>
+                <text fg={selectedTool() === tool.value ? theme.text : theme.textMuted}>
+                  {tool.label}
+                </text>
+              </box>
+            )}
+          </For>
+          <text fg={theme.textMuted}>(Ctrl+T)</text>
+        </box>
+        <box height={1} />
+
         <Show when={selectedTool() === "custom"}>
           <box gap={1} flexDirection="column">
             <text fg={theme.textMuted}>Custom command:</text>
@@ -686,7 +658,7 @@ export function DialogNewWizard() {
     )
   }
 
-  // Step 4: Confirmation
+  // Step 3: Confirmation
   function ConfirmStep() {
     return (
       <box paddingLeft={4} paddingRight={4} gap={1} flexDirection="column">
@@ -774,9 +746,6 @@ export function DialogNewWizard() {
       <StepIndicator />
 
       <Switch>
-        <Match when={currentStep() === "tool"}>
-          <ToolStep />
-        </Match>
         <Match when={currentStep() === "path"}>
           <PathStep />
         </Match>

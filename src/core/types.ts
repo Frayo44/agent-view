@@ -13,11 +13,7 @@ export type SessionStatus =
 
 export type Tool =
   | "claude"      // Claude Code
-  | "opencode"    // OpenCode
-  | "gemini"      // Gemini CLI
-  | "codex"       // OpenAI Codex CLI
   | "custom"      // Custom command
-  | "shell"       // Plain shell
 
 export interface Session {
   id: string
@@ -101,7 +97,7 @@ export interface WorktreeConfig {
 
 export interface Shortcut {
   name: string                    // Display name (also serves as identifier)
-  tool: Tool                      // claude, opencode, gemini, codex, custom, shell
+  tool: Tool                      // claude or custom
   projectPath: string             // Working directory
   groupPath: string               // Target group (created if missing)
   description?: string            // Optional help text
@@ -122,7 +118,6 @@ export interface Recent {
 
 export interface Config {
   theme?: string
-  defaultTool?: Tool
   defaultGroup?: string
   worktree?: WorktreeConfig
   mcpServers?: MCPServer[]
@@ -139,16 +134,17 @@ export function getToolCommand(tool: Tool, customCmd?: string): string {
   switch (tool) {
     case "claude":
       return "claude"
-    case "opencode":
-      return "opencode"
-    case "gemini":
-      return "gemini"
-    case "codex":
-      return "codex"
     case "custom":
-      return customCmd || process.env.SHELL || "/bin/bash"
-    case "shell":
     default:
-      return process.env.SHELL || "/bin/bash"
+      return customCmd || process.env.SHELL || "/bin/bash"
   }
+}
+
+/**
+ * Normalize a tool value read from storage or config.
+ * Legacy values (opencode, gemini, codex, shell, ...) map to "custom" —
+ * those sessions keep working via their stored command.
+ */
+export function sanitizeTool(value: unknown): Tool {
+  return value === "claude" ? "claude" : "custom"
 }

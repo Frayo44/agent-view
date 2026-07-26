@@ -229,7 +229,7 @@ TUI Options:
 
 New Session (--new, -n):
   --path <dir>                    Project path (default: cwd)
-  --tool <name>                   Tool: claude|opencode|gemini|codex|custom|shell (default: claude)
+  --tool <name>                   Tool: claude|custom (default: claude)
   --title <name>                  Session title (default: auto-generated)
   --command <cmd>                 Custom command (requires --tool custom)
   --group <path>                  Group path (default: my-sessions)

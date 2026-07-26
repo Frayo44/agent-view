@@ -20,10 +20,6 @@ import type { Tool, Recent } from "@/core/types"
 
 const TOOL_OPTIONS: { title: string; value: Tool }[] = [
   { title: "Claude Code", value: "claude" },
-  { title: "Shell", value: "shell" },
-  { title: "OpenCode", value: "opencode" },
-  { title: "Gemini CLI", value: "gemini" },
-  { title: "Codex CLI", value: "codex" },
   { title: "Custom command", value: "custom" },
 ]
 
@@ -36,7 +32,7 @@ export function DialogNewRemote() {
 
   const [host, setHost] = createSignal(lastSession?.host || "")
   const [avPath, setAvPath] = createSignal(lastSession?.avPath || "av")
-  const [selectedTool, setSelectedTool] = createSignal<Tool>((lastSession?.tool as Tool) || "claude")
+  const [selectedTool, setSelectedTool] = createSignal<Tool>(lastSession?.tool === "custom" ? "custom" : "claude")
   const [customCommand, setCustomCommand] = createSignal("")
   const [projectPath, setProjectPath] = createSignal(lastSession?.projectPath || "~")
   const [title, setTitle] = createSignal("")

@@ -9,16 +9,6 @@ import { useToast } from "@tui/ui/toast"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { getConfig, loadConfig, saveConfig } from "@/core/config"
-import type { Tool } from "@/core/types"
-
-const TOOL_OPTIONS: { title: string; value: Tool }[] = [
-  { title: "Claude Code", value: "claude" },
-  { title: "OpenCode", value: "opencode" },
-  { title: "Gemini CLI", value: "gemini" },
-  { title: "Codex CLI", value: "codex" },
-  { title: "Custom", value: "custom" },
-  { title: "Shell", value: "shell" },
-]
 
 const HIBERNATE_OPTIONS = [
   { title: "Disabled", value: 0 },
@@ -45,11 +35,6 @@ export function DialogSettings() {
 
     const options = [
       {
-        title: "Default tool",
-        value: "defaultTool" as const,
-        footer: config.defaultTool || "claude",
-      },
-      {
         title: "Theme",
         value: "theme" as const,
         footer: `${themeCtx.selected} (${themeCtx.mode()})`,
@@ -73,7 +58,6 @@ export function DialogSettings() {
         skipFilter
         onSelect={(opt) => {
           switch (opt.value) {
-            case "defaultTool": return showDefaultTool()
             case "theme": return showTheme()
             case "defaultGroup": return showDefaultGroup()
             case "autoHibernate": return showAutoHibernate()
@@ -88,19 +72,6 @@ export function DialogSettings() {
     await saveConfig(updater(config))
     toast.show({ message: "Setting saved", variant: "success", duration: 1500 })
     showSettingsList()
-  }
-
-  function showDefaultTool() {
-    const config = getConfig()
-    dialog.replace(() => (
-      <DialogSelect
-        title="Default tool"
-        options={TOOL_OPTIONS}
-        current={config.defaultTool || "claude"}
-        skipFilter
-        onSelect={(opt) => updateConfig((c) => ({ ...c, defaultTool: opt.value }))}
-      />
-    ))
   }
 
   function showTheme() {

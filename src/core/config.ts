@@ -6,7 +6,7 @@
 import * as path from "path"
 import * as os from "os"
 import * as fs from "fs/promises"
-import type { Tool, Shortcut, Recent } from "./types"
+import { sanitizeTool, type Shortcut, type Recent } from "./types"
 
 export interface WorktreeConfig {
   defaultBaseBranch?: string
@@ -21,7 +21,6 @@ export interface LastRemoteSession {
 }
 
 export interface AppConfig {
-  defaultTool?: Tool
   theme?: string
   worktree?: WorktreeConfig
   defaultGroup?: string
@@ -36,7 +35,6 @@ const CONFIG_DIR = path.join(os.homedir(), ".agent-view")
 const CONFIG_PATH = path.join(CONFIG_DIR, "config.json")
 
 const DEFAULT_CONFIG: AppConfig = {
-  defaultTool: "claude",
   theme: "dark",
   worktree: {
     defaultBaseBranch: "main",
@@ -64,7 +62,9 @@ export async function ensureConfigDir(): Promise<void> {
 export async function loadConfig(): Promise<AppConfig> {
   try {
     const content = await fs.readFile(CONFIG_PATH, "utf-8")
-    const parsed = JSON.parse(content) as Partial<AppConfig>
+    const parsed = JSON.parse(content) as Partial<AppConfig> & { defaultTool?: unknown }
+    // Legacy key from the multi-tool era; ignore it
+    delete parsed.defaultTool
 
     cachedConfig = {
       ...DEFAULT_CONFIG,
@@ -73,9 +73,13 @@ export async function loadConfig(): Promise<AppConfig> {
         ...DEFAULT_CONFIG.worktree,
         ...parsed.worktree
       },
-      // Shortcuts array is replaced entirely, not merged with defaults
-      shortcuts: parsed.shortcuts || [],
-      recents: parsed.recents || []
+      // Shortcuts array is replaced entirely, not merged with defaults.
+      // Tool values are sanitized so entries from the multi-tool era still work.
+      shortcuts: (parsed.shortcuts || []).map(s => ({ ...s, tool: sanitizeTool(s.tool) })),
+      recents: (parsed.recents || []).map(r => ({ ...r, tool: sanitizeTool(r.tool) })),
+      lastRemoteSession: parsed.lastRemoteSession
+        ? { ...parsed.lastRemoteSession, tool: sanitizeTool(parsed.lastRemoteSession.tool) }
+        : undefined
     }
 
     return cachedConfig

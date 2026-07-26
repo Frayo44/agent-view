@@ -12,7 +12,7 @@ import type { NewOptions, ListOptions } from "./args"
 import { existsSync } from "fs"
 import path from "path"
 
-const VALID_TOOLS = ["claude", "opencode", "gemini", "codex", "custom", "shell"]
+const VALID_TOOLS = ["claude", "custom"]
 const VALID_STATUSES = ["running", "waiting", "idle", "stopped", "error", "hibernated"]
 
 function resolveSessionId(idOrTitle: string): string | null {
