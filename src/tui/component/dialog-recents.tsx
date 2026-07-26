@@ -30,6 +30,8 @@ export function DialogRecents() {
 
   const recents = getRecents()
   const [selectedIndex, setSelectedIndex] = createSignal(0)
+  // Hover selects only when the mouse was the last input (see dialog-select)
+  const [inputMode, setInputMode] = createSignal<"keyboard" | "mouse">("keyboard")
   const [executing, setExecuting] = createSignal(false)
   const [statusMessage, setStatusMessage] = createSignal("")
   const [spinnerFrame, setSpinnerFrame] = createSignal(0)
@@ -130,6 +132,7 @@ export function DialogRecents() {
   }
 
   useKeyboard((evt) => {
+    setInputMode("keyboard")
     // ESC to close
     if (evt.name === "escape") {
       evt.preventDefault()
@@ -209,7 +212,10 @@ export function DialogRecents() {
                   setSelectedIndex(idx())
                   handleExecute(recent)
                 }}
-                onMouseOver={() => setSelectedIndex(idx())}
+                onMouseMove={() => setInputMode("mouse")}
+                onMouseOver={() => {
+                  if (inputMode() === "mouse") setSelectedIndex(idx())
+                }}
               >
                 {/* Tool icon */}
                 <text fg={isSelected() ? theme.selectedListItemText : theme.accent}>

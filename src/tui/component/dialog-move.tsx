@@ -37,6 +37,8 @@ export function DialogMove(props: DialogMoveProps) {
   const [selectedIndex, setSelectedIndex] = createSignal(
     Math.max(0, groups().findIndex(g => g.path === currentGroupPath))
   )
+  // Hover selects only when the mouse was the last input (see dialog-select)
+  const [inputMode, setInputMode] = createSignal<"keyboard" | "mouse">("keyboard")
 
   const move = createListNavigation(
     () => groups().length,
@@ -65,6 +67,7 @@ export function DialogMove(props: DialogMoveProps) {
   }
 
   useKeyboard((evt) => {
+    setInputMode("keyboard")
     if (evt.name === "up" || evt.name === "k") {
       evt.preventDefault()
       move(-1)
@@ -108,7 +111,10 @@ export function DialogMove(props: DialogMoveProps) {
                   setSelectedIndex(index())
                   handleSelect()
                 }}
-                onMouseOver={() => setSelectedIndex(index())}
+                onMouseMove={() => setInputMode("mouse")}
+                onMouseOver={() => {
+                  if (inputMode() === "mouse") setSelectedIndex(index())
+                }}
               >
                 {/* Selection indicator */}
                 <text fg={isSelected() ? theme.selectedListItemText : theme.textMuted}>

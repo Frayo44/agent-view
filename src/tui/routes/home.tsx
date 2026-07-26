@@ -107,6 +107,11 @@ export function Home() {
   onCleanup(() => clearInterval(autoHibernateInterval))
 
   const [selectedIndex, setSelectedIndex] = createSignal(0)
+  // Hover only moves the selection when the mouse was the last input used —
+  // onMouseOver also fires when rows re-render/scroll under a stationary
+  // pointer, which would hijack keyboard navigation (same pattern as
+  // dialog-select).
+  const [inputMode, setInputMode] = createSignal<"keyboard" | "mouse">("keyboard")
   const [previewContent, setPreviewContent] = createSignal<string>("")
   const [previewLoading, setPreviewLoading] = createSignal(false)
   let scrollRef: ScrollBoxRenderable | undefined
@@ -564,6 +569,8 @@ export function Home() {
 
     if (dialog.stack.length > 0) return
 
+    setInputMode("keyboard")
+
     if (evt.name === "up" || evt.name === "k") {
       move(-1)
     }
@@ -813,7 +820,10 @@ export function Home() {
           setSelectedIndex(props.index)
           sync.group.toggle(props.group.path)
         }}
-        onMouseOver={() => setSelectedIndex(props.index)}
+        onMouseMove={() => setInputMode("mouse")}
+        onMouseOver={() => {
+          if (inputMode() === "mouse") setSelectedIndex(props.index)
+        }}
       >
         {/* Expand/collapse arrow */}
         <text fg={isSelected() ? theme.selectedListItemText : theme.accent}>
@@ -900,7 +910,10 @@ export function Home() {
           setSelectedIndex(props.index)
           handleAttach(props.session)
         }}
-        onMouseOver={() => setSelectedIndex(props.index)}
+        onMouseMove={() => setInputMode("mouse")}
+        onMouseOver={() => {
+          if (inputMode() === "mouse") setSelectedIndex(props.index)
+        }}
       >
         {/* Status icon with fixed width */}
         <box width={2} flexShrink={0}>

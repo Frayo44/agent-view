@@ -30,6 +30,8 @@ export function DialogShortcuts() {
 
   const shortcuts = getShortcuts()
   const [selectedIndex, setSelectedIndex] = createSignal(0)
+  // Hover selects only when the mouse was the last input (see dialog-select)
+  const [inputMode, setInputMode] = createSignal<"keyboard" | "mouse">("keyboard")
   const [executing, setExecuting] = createSignal(false)
   const [statusMessage, setStatusMessage] = createSignal("")
   const [spinnerFrame, setSpinnerFrame] = createSignal(0)
@@ -86,6 +88,7 @@ export function DialogShortcuts() {
   }
 
   useKeyboard((evt) => {
+    setInputMode("keyboard")
     // ESC to close
     if (evt.name === "escape") {
       evt.preventDefault()
@@ -184,7 +187,10 @@ export function DialogShortcuts() {
                   setSelectedIndex(idx())
                   handleExecute(shortcut)
                 }}
-                onMouseOver={() => setSelectedIndex(idx())}
+                onMouseMove={() => setInputMode("mouse")}
+                onMouseOver={() => {
+                  if (inputMode() === "mouse") setSelectedIndex(idx())
+                }}
               >
                 {/* Number hint */}
                 <Show when={idx() < 9}>
