@@ -32,7 +32,8 @@ src/
 ## Key Features
 
 - **Session Management:** Create, stop, restart, delete AI agent sessions
-- **Multiple Tools:** Claude Code, OpenCode, Gemini, Codex, Custom commands
+- **Tools:** Claude Code, plus custom commands for anything else
+- **Notifications:** OS notifications via Claude Code hooks (`src/core/hooks.ts`, `src/core/notify.ts`) when an agent finishes or needs input
 - **Git Worktrees:** Create sessions in isolated git worktrees
 - **Auto-suggestions:** Fuzzy search for previously used paths and branch names
 - **Status Monitoring:** Real-time session status (running, waiting, idle, error)
@@ -87,7 +88,7 @@ bun test         # Run tests
 
 ## Important Files
 
-- `src/tui/component/dialog-new.tsx` - New session dialog with tool selection
+- `src/tui/component/dialog-new-wizard.tsx` - New session wizard (path → options → confirm)
 - `src/tui/component/dialog-settings.tsx` - Settings dialog (press `c` in home screen)
 - `src/tui/routes/home.tsx` - Main home screen with session list
 - `src/core/session.ts` - Session creation and lifecycle

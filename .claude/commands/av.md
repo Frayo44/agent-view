@@ -8,7 +8,7 @@ av --new --path $PROJECT_PATH --tool claude
 
 Flags:
 - `--path <dir>` — Project directory (default: cwd)
-- `--tool <name>` — claude | opencode | gemini | codex | custom | shell (default: claude)
+- `--tool <name>` — claude | custom (default: claude)
 - `--title <name>` — Session title (default: auto-generated)
 - `--command <cmd>` — Custom command (requires `--tool custom`)
 - `--group <path>` — Group path (default: my-sessions)

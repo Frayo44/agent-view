@@ -4,7 +4,7 @@
 
 Run multiple AI coding agents in parallel and manage them from a single dashboard. Agent View is a lightweight tmux session manager built for AI-assisted development workflows - monitor agent status in real-time, get notifications when agents finish or need input, and seamlessly switch between sessions.
 
-Works with **Claude Code**, **Gemini CLI**, **OpenCode**, **Codex CLI**, and any custom AI coding tool.
+Built for **Claude Code**, with support for any custom command.
 
 ## Supported Platforms
 
@@ -33,10 +33,10 @@ When working with AI coding agents, you often need to run multiple agents on dif
 ## Features
 
 - **Multi-Agent Dashboard** - View all your AI coding assistant sessions at a glance with real-time status indicators
-- **Smart Notifications** - Get notified when an agent finishes a task or needs your input, so you can context-switch efficiently
+- **Native Notifications** - OS notifications (macOS/Linux) when an agent finishes a task or needs your input, powered by Claude Code hooks. They fire even while you're attached to another session or the dashboard is closed, and are suppressed for the session you're currently watching. Toggle in Settings (`c`).
 - **Session Management** - Create, stop, restart, and delete coding agent sessions with keyboard shortcuts
 - **Git Worktree Integration** - Automatically create isolated git worktrees for each agent session, keeping your branches clean
-- **Tool Agnostic** - Works as a Claude Code manager, Gemini CLI orchestrator, OpenCode dashboard, or with any custom AI tool
+- **Custom Commands** - Besides Claude Code, run any custom command (aider, scripts, plain shells) as a managed session
 - **Keyboard-First** - Fully navigable terminal UI with keyboard shortcuts for maximum productivity
 - **Session Groups** - Organize sessions into groups by project or workflow
 - **Persistent State** - Sessions survive terminal restarts and system reboots via tmux
@@ -124,10 +124,9 @@ av
 ### Create a Session
 
 1. Press `n` to open the new session dialog
-2. Select your AI tool (Claude, Gemini, OpenCode, etc.)
-3. Enter the project path
-4. Optionally enable git worktree for an isolated branch
-5. Press `Enter` to create and attach
+2. Enter the project path (optionally enable git worktree for an isolated branch)
+3. Pick Claude Code or a custom command, set options
+4. Press `Enter` to create and attach
 
 ### Configuration
 
@@ -135,7 +134,7 @@ Create `~/.agent-view/config.json` to customize defaults:
 
 ```json
 {
-  "defaultTool": "claude",
+  "notifications": true,
   "worktree": {
     "defaultBaseBranch": "main",
     "command": "git worktree"
@@ -149,8 +148,9 @@ Create `~/.agent-view/config.json` to customize defaults:
       "keybind": "<leader>1"
     },
     {
-      "name": "Frontend App",
-      "tool": "gemini",
+      "name": "Deploy Shell",
+      "tool": "custom",
+      "command": "./deploy.sh",
       "projectPath": "/home/dev/projects/frontend-app",
       "groupPath": "work",
       "keybind": "<leader>2"
@@ -164,7 +164,7 @@ Create `~/.agent-view/config.json` to customize defaults:
 | Shortcut Field | Required | Description |
 |----------------|----------|-------------|
 | `name` | Yes | Display name and session title |
-| `tool` | Yes | `claude`, `gemini`, `opencode`, `codex`, `custom`, `shell` |
+| `tool` | Yes | `claude` or `custom` |
 | `projectPath` | Yes | Working directory for the session |
 | `groupPath` | Yes | Target group (created automatically if missing) |
 | `keybind` | No | Direct keybind, e.g. `"<leader>1"`, `"ctrl+1"` |
@@ -186,7 +186,7 @@ Press `Shift+N` to open the remote session wizard:
 
 1. **SSH Host** - Enter the SSH destination (e.g., `user@hostname` or an SSH config name)
 2. **av Path** - Path to `av` binary on remote (default: `av`)
-3. **Tool** - Select the AI tool to use
+3. **Tool** - Claude Code or a custom command
 4. **Project Path** - Working directory on the remote machine
 5. **Title** - Optional session name
 
@@ -196,7 +196,7 @@ Values are remembered for next time.
 
 - [Bun](https://bun.sh) runtime
 - [tmux](https://github.com/tmux/tmux) for session management
-- At least one AI coding tool installed (claude, gemini, opencode, etc.)
+- [Claude Code](https://claude.com/claude-code) (or any custom command to run as a session)
 - For remote sessions: SSH access to remote host with `av` installed
 
 ## Acknowledgments
