@@ -29,6 +29,7 @@ export interface AppConfig {
   autoHibernateMinutes?: number   // 0 = disabled, default 0
   autoHibernatePrompted?: boolean // true = user has seen the prompt
   notifications?: boolean         // OS notifications when agents finish/need input, default true
+  mouse?: boolean                 // Mouse support in the TUI; false = keyboard-only, default true
   lastRemoteSession?: LastRemoteSession   // Last used remote session values
 }
 
@@ -44,7 +45,8 @@ const DEFAULT_CONFIG: AppConfig = {
   defaultGroup: "default",
   shortcuts: [],
   recents: [],
-  notifications: true
+  notifications: true,
+  mouse: true
 }
 
 // Cached config for sync access

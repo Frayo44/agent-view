@@ -24,7 +24,7 @@ import { ThemeProvider, useTheme } from "@tui/context/theme"
 import { KeybindProvider, useKeybind } from "@tui/context/keybind"
 import { KVProvider, useKV } from "@tui/context/kv"
 import { ConfigProvider } from "@tui/context/config"
-import { loadConfig } from "@/core/config"
+import { loadConfig, getConfig } from "@/core/config"
 import { DialogProvider, useDialog } from "@tui/ui/dialog"
 import { ToastProvider, useToast } from "@tui/ui/toast"
 import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
@@ -119,7 +119,10 @@ export async function tui(options: TuiOptions = {}) {
         exitOnCtrlC: false,
         autoFocus: false,
         useKittyKeyboard: {},
-        openConsoleOnError: true
+        openConsoleOnError: true,
+        // With mouse off, terminal mouse reporting is never enabled: the TUI
+        // is keyboard-only and native terminal text selection/copy works
+        useMouse: getConfig().mouse !== false
       }
     )
   })

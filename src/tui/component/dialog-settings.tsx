@@ -3,6 +3,7 @@
  * Exposes all config.json settings in the TUI
  */
 
+import { useRenderer } from "@opentui/solid"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogSelect } from "@tui/ui/dialog-select"
 import { useToast } from "@tui/ui/toast"
@@ -29,6 +30,7 @@ export function DialogSettings() {
   const toast = useToast()
   const themeCtx = useTheme()
   const sync = useSync()
+  const renderer = useRenderer()
 
   function showSettingsList() {
     const config = getConfig()
@@ -54,6 +56,11 @@ export function DialogSettings() {
         value: "notifications" as const,
         footer: config.notifications !== false ? "Enabled" : "Disabled",
       },
+      {
+        title: "Mouse support",
+        value: "mouse" as const,
+        footer: config.mouse !== false ? "Enabled" : "Disabled (keyboard-only)",
+      },
     ]
 
     dialog.replace(() => (
@@ -67,6 +74,7 @@ export function DialogSettings() {
             case "defaultGroup": return showDefaultGroup()
             case "autoHibernate": return showAutoHibernate()
             case "notifications": return showNotifications()
+            case "mouse": return showMouse()
           }
         }}
       />
@@ -135,6 +143,25 @@ export function DialogSettings() {
         current={config.autoHibernateMinutes || 0}
         skipFilter
         onSelect={(opt) => updateConfig((c) => ({ ...c, autoHibernateMinutes: opt.value, autoHibernatePrompted: true }))}
+      />
+    ))
+  }
+
+  function showMouse() {
+    const config = getConfig()
+    dialog.replace(() => (
+      <DialogSelect
+        title="Mouse support"
+        options={[
+          { title: "Enabled", value: true },
+          { title: "Disabled (keyboard-only)", value: false },
+        ]}
+        current={config.mouse !== false}
+        skipFilter
+        onSelect={(opt) => {
+          renderer.useMouse = opt.value
+          updateConfig((c) => ({ ...c, mouse: opt.value }))
+        }}
       />
     ))
   }
